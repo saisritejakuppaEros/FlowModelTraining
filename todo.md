@@ -1,234 +1,177 @@
-Here’s the **detailed TODO list** with **file names** included for unit testing each module, ensuring the tests are written **after each module** is implemented.
+✅ 1. configs/
+config.yaml
+ Define general training settings (batch size, learning rate, number of epochs, etc.).
 
----
+ Add paths for datasets, logs, and model saving.
 
-### ✅ **Unit Testing Setup**
+ Add options for using mixed-precision training, distributed training, etc.
 
-#### **1. Setup Test Environment**
+ Include learning rate schedulers and optimizer settings (e.g., Adam, SGD).
 
-* [ ] **Create a `tests/` folder** for organizing unit tests:
+model_config.yaml
+ Define model architecture parameters (e.g., flow layers, hidden dimensions).
 
-  * [ ] **tests/**: Main folder containing all test files.
-  * [ ] **tests/fixtures/**: For mock data and configurations.
-* [ ] **Install required testing dependencies**:
+ Specify input/output dimensions.
 
-  * [ ] **PyTorch**: `pip install torch`
-  * [ ] **PyTorch Lightning**: `pip install pytorch-lightning`
-  * [ ] **WandB**: `pip install wandb`
-  * [ ] **TensorBoard**: `pip install tensorboard`
-  * [ ] **unittest2** (or other testing libraries): `pip install unittest2` or `pytest`
+ Include parameters specific to the flow-based model (e.g., type of flow model like RealNVP or Glow).
 
----
+Testing Tasks for Config Loading
+ Test if the config.yaml loads properly and contains the expected fields (batch size, learning rate, etc.).
 
-### ✅ **2. Test Data Loading** (`tests/test_data.py`)
+ Test if the model_config.yaml loads properly and includes architecture parameters (flow layers, hidden dimensions).
 
-* **Module Written**: After implementing **`data/dataset.py`** and **`data/transforms.py`**.
+✅ 2. data/
+dataset.py
+ Define custom dataset class using torch.utils.data.Dataset.
 
-  * [ ] **Create random dataset class** (`CustomDataset`) using `torch.utils.data.Dataset`.
-  * [ ] **Test DataLoader**:
+ Implement dataset loading logic (image-text pairs, etc.).
 
-    * [ ] Test that **data is loaded** properly with a **batch size**.
-    * [ ] Ensure **data transformations** (e.g., resizing, normalization) are applied correctly.
-  * [ ] **Test data augmentation** (if applicable):
+ Add data preprocessing (resizing, normalization).
 
-    * [ ] Verify that **data augmentation** works correctly on random inputs.
+ Implement separate training/validation splits.
 
-* **Unit Test Tasks**:
+ Implement batching logic using DataLoader.
 
-  * **File Name**: `tests/test_data.py`
-  * [ ] Test **batch size loading**:
+transforms.py
+ Implement standard image transformations (resize, normalization).
 
-    * Pass data through the **DataLoader** and ensure the correct batch size.
-  * [ ] Test **transformations** (e.g., resizing, normalization):
+ Implement text transformations (tokenization, padding).
 
-    * Verify that images are correctly resized and normalized.
-  * [ ] Test **data augmentation**:
+ Add data augmentation if necessary (flipping, rotation, etc.).
 
-    * Ensure that augmentations like flipping, rotating, or random cropping work.
+Testing Tasks for Dataset
+ Test that data loading works correctly with batch size and shuffling.
 
----
+ Test if transformations (e.g., resizing, normalization) are applied properly to the dataset.
 
-### ✅ **3. Test Model Architecture** (`tests/test_model.py`)
+ Test that data augmentation works correctly on random inputs.
 
-* **Module Written**: After implementing **`models/base_model.py`** and **`models/flow_model.py`**.
+✅ 3. logs/
+lightning_logs/
+ Set up PyTorch Lightning logging to monitor training.
 
-  * [ ] **Test the forward pass**:
+ Create directories for storing model checkpoints, TensorBoard logs, and progress summaries.
 
-    * Pass random inputs through the model and check if the **output shape** is as expected.
-    * Ensure that the **flow model layers** are properly connected and functional.
-  * [ ] **Test optimizer**:
+ Integrate with optional logging services like WandB for advanced monitoring.
 
-    * Verify that the optimizer is set up correctly and has the expected parameter groups.
+Testing Tasks for Logging
+ Test if logs are being written correctly to TensorBoard.
 
-* **Unit Test Tasks**:
+ Test if WandB logging is sending metrics (e.g., loss, learning rate).
 
-  * **File Name**: `tests/test_model.py`
-  * [ ] Test **forward pass**:
+ Ensure that logs appear as expected for metrics and images.
 
-    * Pass random data through the model and verify that the output tensor shape is correct.
-  * [ ] Test **model layers connection**:
+✅ 4. models/
+base_model.py
+ Create a base class for models that handles common operations (e.g., forward, backward methods).
 
-    * Ensure that all model layers are linked properly (flow layers, etc.).
-  * [ ] Test **optimizer setup**:
+ Implement optimizer setup.
 
-    * Check if the optimizer is created with the correct parameters.
+ Define training loop behavior (steps like gradient updates).
 
----
+flow_model.py
+ Define the flow-based model 
 
-### ✅ **4. Test Training Loop** (`tests/test_train.py`)
+ Use pl.LightningModule as the base class.
 
-* **Module Written**: After implementing **`training/train.py`**, **`training/trainer.py`**, and **`training/metrics.py`**.
+ Implement forward pass and loss functions.
 
-  * [ ] **Test the training script**:
+ Set up optimizer and learning rate scheduler.
 
-    * Mock the **`main`** function in the `train.py` script.
-    * Ensure that the script **runs without errors** when invoked.
-    * Check if the model trains for a **few epochs** without crashing.
-  * [ ] **Test checkpoint saving/loading**:
+Testing Tasks for Model
+ Test that the forward pass works as expected with random inputs.
 
-    * Verify that **checkpoints** are saved and restored correctly.
+ Test if optimizer setup is correct.
 
-* **Unit Test Tasks**:
+ Ensure the model layers are properly connected and initialized.
 
-  * **File Name**: `tests/test_train.py`
-  * [ ] Test **training loop execution**:
+✅ 5. training/
+train.py
+ Load model configuration.
 
-    * Ensure that the model **trains correctly** for a few epochs (mock data).
-  * [ ] Test **checkpoint saving/loading**:
+ Load datasets using DataLoader.
 
-    * Test saving and loading checkpoints during the training process.
+ Set up PyTorch Lightning Trainer.
 
----
+ Implement the training loop.
 
-### ✅ **5. Test Inference** (`tests/test_inference.py`)
+ Save checkpoints every N steps or epochs.
 
-* **Module Written**: After implementing **`inference/infer.py`**.
+ Handle validation during training.
 
-  * [ ] **Test inference functions**:
+trainer.py
+ Implement custom training logic (e.g., callbacks, checkpoint saving, and early stopping).
 
-    * Load the trained model from checkpoint.
-    * Generate predictions on random inputs.
-    * Ensure that the generated outputs (images or text) are in the correct format.
+ Set up the logging and monitoring features during training.
 
-* **Unit Test Tasks**:
+metrics.py
+ Implement evaluation metrics (e.g., FID, Inception score).
 
-  * **File Name**: `tests/test_inference.py`
-  * [ ] Test if the **trained model** can load properly from checkpoint.
-  * [ ] Test that **inference** works as expected on random inputs.
-  * [ ] Verify that the **output format** (image/text) is correct.
+ Define custom metric functions for evaluating model performance.
 
----
+Testing Tasks for Training
+ Mock training loop to test if the model trains for a few epochs.
 
-### ✅ **6. Test Logging** (`tests/test_logger.py`)
+ Test that checkpoints are saved at correct intervals.
 
-* **Module Written**: After implementing **`utils/logger.py`**.
+ Verify that validation works correctly during training.
 
-  * [ ] **Test logging with WandB**:
+ Test that metrics (e.g., FID) are calculated correctly.
 
-    * Mock the **WandB** logger and verify that logs are being sent correctly.
-    * Check that metrics like loss and learning rate are logged during training.
-  * [ ] **Test logging with TensorBoard**:
+✅ 6. inference/
+infer.py
+ Load trained model (from checkpoint).
 
-    * Ensure that TensorBoard logs are being written correctly.
-    * Check if loss, metrics, and images (if logged) appear correctly in TensorBoard.
+ Implement inference logic (e.g., image generation, text-to-image generation).
 
-* **Unit Test Tasks**:
+ Preprocess input data for inference.
 
-  * **File Name**: `tests/test_logger.py`
-  * [ ] Test **WandB logging**:
+ Postprocess output (e.g., save images or captions).
 
-    * Mock **WandB** and verify that logs are being sent correctly.
-  * [ ] Test **TensorBoard logging**:
+ Optionally, compute any post-inference metrics (e.g., image quality).
 
-    * Verify that **TensorBoard** logs are correctly written and can be viewed.
+Testing Tasks for Inference
+ Test if the trained model can load properly from checkpoint.
 
----
+ Test that inference works as expected on random inputs.
 
-### ✅ **7. Test Metrics Calculation** (`tests/test_metrics.py`)
+ Verify that the output format (image/text) is correct.
 
-* **Module Written**: After implementing **`training/metrics.py`**.
+✅ 7. utils/
+logger.py
+ Implement custom logging utilities for TensorBoard or WandB.
 
-  * [ ] **Test evaluation metrics**:
+ Set up logging for training and validation loss, learning rate, etc.
 
-    * Use random data to calculate metrics like **FID** or **Inception Score**.
-    * Verify that the metrics functions return values within expected ranges.
+ Create logging functions for different loggers.
 
-* **Unit Test Tasks**:
+checkpoint.py
+ Implement checkpoint saving logic (saving model weights, optimizer state, scheduler state).
 
-  * **File Name**: `tests/test_metrics.py`
-  * [ ] Test **FID calculation**:
+ Implement loading of checkpoints to resume training or make predictions.
 
-    * Verify that FID calculation returns a valid result within the expected range.
-  * [ ] Test **Inception score**:
+Testing Tasks for Logger and Checkpoints
+ Test if checkpoint saving works and can be loaded correctly.
 
-    * Ensure that the Inception score is calculated correctly.
+ Test if logging works for both WandB and TensorBoard.
 
----
+✅ 8. main.py
+ Load configuration files (config.yaml and model_config.yaml).
 
-### ✅ **8. Test Checkpointing** (`tests/utils/test_checkpoint.py`)
+ Set up datasets using the logic from data/.
 
-* **Module Written**: After implementing **`utils/checkpoint.py`**.
+ Initialize and train the model using train.py.
 
-  * [ ] **Test saving and loading checkpoints**:
+ Implement the option to either start training or inference depending on the user's input.
 
-    * Save the model’s state dictionary to a checkpoint.
-    * Load the checkpoint and verify that the model’s state is restored correctly.
-    * Ensure optimizer and scheduler states are saved and loaded.
+ Handle logging and monitoring using the logger utilities.
 
-* **Unit Test Tasks**:
+ Optionally, handle multi-GPU or distributed training if necessary.
 
-  * **File Name**: `tests/utils/test_checkpoint.py`
-  * [ ] Test **checkpoint saving**:
+Testing Tasks for Main Script
+ Test if the training script runs correctly when invoked.
 
-    * Ensure that model weights, optimizer state, and scheduler state are saved properly.
-  * [ ] Test **checkpoint loading**:
+ Test if inference can be run from the main entry point.
 
-    * Verify that the saved state can be restored correctly for both model and optimizer.
+ Verify that logs are being written during the execution.
 
----
-
-### ✅ **9. Mock Random Data for Testing** (`tests/fixtures/mock_data.py`)
-
-* **Module Written**: After implementing **random dataset generation** for unit testing.
-
-  * [ ] **Create a mock dataset**:
-
-    * Implement a `CustomDataset` class that generates random data (images and labels).
-    * Use random tensors for image data and random integers for labels.
-
-* **Unit Test Tasks**:
-
-  * **File Name**: `tests/fixtures/mock_data.py`
-  * [ ] Ensure that **random data** (images and labels) are generated correctly for testing purposes.
-
----
-
-### ✅ **10. Final Testing and Running Tests**
-
-* [ ] **Run all unit tests**:
-
-  * Use `unittest` or `pytest` to ensure all tests pass successfully.
-  * [ ] Test the entire pipeline with mock data and confirm everything works correctly.
-* [ ] **Check Test Coverage**:
-
-  * Use tools like `coverage.py` to ensure sufficient test coverage for the entire codebase.
-
-#### **Commands to Run Tests**
-
-* **Run all tests using `unittest`**:
-
-  ```bash
-  python -m unittest discover tests/
-  ```
-
-* **Run tests using `pytest`** (if using `pytest`):
-
-  ```bash
-  pytest tests/
-  ```
-
----
-
-This list ensures that you implement **unit tests** after each module, starting from **data loading** and **model architecture** to **training**, **inference**, **logging**, **metrics**, and **checkpointing**.
-
-Would you like any additional help with writing the test functions or setting up any part of the codebase?

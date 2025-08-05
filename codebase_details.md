@@ -1,6 +1,6 @@
 # FlowModelTraining
 This codebase is to do flow model training.
-
+```
 ├── configs/                # Configuration files (YAML, JSON)
 │   ├── config.yaml         # Hyperparameters, training settings
 │   └── model_config.yaml   # Model-specific parameters
@@ -42,6 +42,7 @@ This codebase is to do flow model training.
 ├── requirements.txt        # Python dependencies
 ├── main.py                 # Main entry point to start training or inference
 └── README.md               # Project documentation
+```
 
 📂 Detailed Description of Each Directory
 1. configs/

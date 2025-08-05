@@ -1,0 +1,14 @@
+deepspeed
+einops
+transformers
+huggingface-hub
+optimum-quanto
+datasets
+omegaconf
+diffusers
+sentencepiece
+opencv-python
+matplotlib
+onnxruntime
+torchvision
+timm

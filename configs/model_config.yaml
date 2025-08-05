@@ -1,0 +1,164 @@
+# Model Configuration for Flow-based Models
+# Based on x-flux repository model specifications
+
+# Flux Model Parameters (FluxParams dataclass)
+flux_params:
+  # Input/Output dimensions
+  in_channels: 64
+  vec_in_dim: 768
+  context_in_dim: 4096
+  
+  # Architecture parameters
+  hidden_size: 3072
+  mlp_ratio: 4.0
+  num_heads: 24
+  depth: 19
+  depth_single_blocks: 38
+  
+  # Positional encoding
+  axes_dim: [16, 56, 56]
+  theta: 10000
+  
+  # Model behavior
+  qkv_bias: true
+  guidance_embed: true
+
+# AutoEncoder Parameters
+autoencoder_params:
+  resolution: 256
+  in_channels: 3
+  ch: 128
+  out_ch: 3
+  ch_mult: [1, 2, 4, 4]
+  num_res_blocks: 2
+  z_channels: 16
+  scale_factor: 0.3611
+  shift_factor: 0.1159
+
+# Model Variants Configuration
+model_variants:
+  flux-dev:
+    repo_id: "black-forest-labs/FLUX.1-dev"
+    repo_id_ae: "black-forest-labs/FLUX.1-dev"
+    repo_flow: "flux1-dev.safetensors"
+    repo_ae: "ae.safetensors"
+    params:
+      in_channels: 64
+      vec_in_dim: 768
+      context_in_dim: 4096
+      hidden_size: 3072
+      mlp_ratio: 4.0
+      num_heads: 24
+      depth: 19
+      depth_single_blocks: 38
+      axes_dim: [16, 56, 56]
+      theta: 10000
+      qkv_bias: true
+      guidance_embed: true
+    ae_params:
+      resolution: 256
+      in_channels: 3
+      ch: 128
+      out_ch: 3
+      ch_mult: [1, 2, 4, 4]
+      num_res_blocks: 2
+      z_channels: 16
+      scale_factor: 0.3611
+      shift_factor: 0.1159
+      
+  flux-dev-fp8:
+    repo_id: "XLabs-AI/flux-dev-fp8"
+    repo_id_ae: "black-forest-labs/FLUX.1-dev"
+    repo_flow: "flux-dev-fp8.safetensors"
+    repo_ae: "ae.safetensors"
+    params:
+      in_channels: 64
+      vec_in_dim: 768
+      context_in_dim: 4096
+      hidden_size: 3072
+      mlp_ratio: 4.0
+      num_heads: 24
+      depth: 19
+      depth_single_blocks: 38
+      axes_dim: [16, 56, 56]
+      theta: 10000
+      qkv_bias: true
+      guidance_embed: true
+    ae_params:
+      resolution: 256
+      in_channels: 3
+      ch: 128
+      out_ch: 3
+      ch_mult: [1, 2, 4, 4]
+      num_res_blocks: 2
+      z_channels: 16
+      scale_factor: 0.3611
+      shift_factor: 0.1159
+      
+  flux-schnell:
+    repo_id: "black-forest-labs/FLUX.1-schnell"
+    repo_id_ae: "black-forest-labs/FLUX.1-schnell"
+    repo_flow: "flux1-schnell.safetensors"
+    repo_ae: "ae.safetensors"
+    params:
+      in_channels: 64
+      vec_in_dim: 768
+      context_in_dim: 4096
+      hidden_size: 2048
+      mlp_ratio: 4.0
+      num_heads: 16
+      depth: 12
+      depth_single_blocks: 24
+      axes_dim: [16, 56, 56]
+      theta: 10000
+      qkv_bias: true
+      guidance_embed: true
+    ae_params:
+      resolution: 256
+      in_channels: 3
+      ch: 128
+      out_ch: 3
+      ch_mult: [1, 2, 4, 4]
+      num_res_blocks: 2
+      z_channels: 16
+      scale_factor: 0.3611
+      shift_factor: 0.1159
+
+# LoRA Configuration (for LoRA training)
+lora_config:
+  rank: 16
+  single_blocks: "1,2,3,4"  # Which blocks to apply LoRA to
+  double_blocks: null
+  disable_sampling: false
+
+# ControlNet Configuration (for ControlNet training)
+controlnet_config:
+  controlnet_depth: 2
+  control_type: "canny"  # Options: "canny", "depth", "pose", etc.
+
+# Flow Matching Parameters
+flow_params:
+  noise_schedule: "linear"
+  num_timesteps: 1000
+  beta_start: 0.0001
+  beta_end: 0.02
+  guidance_scale: 7.5
+
+# Loss Function Parameters
+loss_params:
+  type: "mse"
+  reduction: "mean"
+  snr_gamma: 5.0  # SNR weighting for loss calculation
+
+# Text Encoder Configuration
+text_encoder:
+  model_name: "openai/clip-vit-large-patch14"
+  max_length: 256  # For schnell model
+  max_length_long: 512  # For regular models
+
+# Sampling Configuration
+sampling:
+  num_inference_steps: 20
+  guidance_scale: 7.5
+  eta: 0.0
+  use_karras_sigmas: true 

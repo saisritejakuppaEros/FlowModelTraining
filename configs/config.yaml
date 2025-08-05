@@ -1,0 +1,81 @@
+# Training Configuration for Flow Model Training
+# Based on x-flux repository configuration
+
+# Model Configuration
+model_name: "flux-dev"  # Options: "flux-dev", "flux-dev-fp8", "flux-schnell"
+
+# Data Configuration
+data_config:
+  train_batch_size: 1
+  num_workers: 4
+  img_size: 512
+  img_dir: "data/images/"
+  random_ratio: true  # Support multi crop preprocessing
+
+# Training Parameters
+train_batch_size: 1
+max_train_steps: 100000
+learning_rate: 1e-5
+lr_scheduler: "constant"  # Options: "constant", "cosine", "linear"
+lr_warmup_steps: 10
+
+# Optimizer Configuration
+adam_beta1: 0.9
+adam_beta2: 0.999
+adam_weight_decay: 0.01
+adam_epsilon: 1e-8
+max_grad_norm: 1.0
+
+# Training Strategy
+gradient_accumulation_steps: 2
+mixed_precision: "bf16"  # Options: "fp16", "bf16", "no"
+
+# Checkpointing and Saving
+output_dir: "saves/"
+checkpointing_steps: 2500
+checkpoints_total_limit: 10
+resume_from_checkpoint: "latest"  # Options: "latest", "best", or specific path
+
+# Logging Configuration
+logging_dir: "logs"
+report_to: "wandb"  # Options: "wandb", "tensorboard", "none"
+tracker_project_name: "flow_model_training"
+
+# Hardware Configuration
+num_gpus: 1
+strategy: "auto"  # Options: "auto", "ddp", "deepspeed"
+
+# Distributed Training (if using multiple GPUs)
+distributed:
+  backend: "nccl"
+  find_unused_parameters: false
+
+# Validation and Evaluation
+validation:
+  val_every_n_steps: 1000
+  save_samples: true
+  sample_every: 250
+  sample_width: 1024
+  sample_height: 1024
+  sample_steps: 20
+  sample_prompts:
+    - "woman with red hair, playing chess at the park, bomb going off in the background"
+    - "a woman holding a coffee cup, in a beanie, sitting at a cafe"
+
+# Paths Configuration
+paths:
+  output_dir: "saves/"
+  logging_dir: "logs"
+  checkpoint_dir: "checkpoints"
+  sample_dir: "samples"
+  dataset_dir: "data/images/"
+
+# Advanced Training Options
+advanced:
+  use_xformers: true
+  enable_attention_slicing: false
+  enable_vae_slicing: false
+  enable_vae_tiling: false
+  gradient_checkpointing: true
+  use_ema: false
+  ema_decay: 0.9999 

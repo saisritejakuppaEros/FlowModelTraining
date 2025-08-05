@@ -1,0 +1,89 @@
+# ControlNet Training Configuration
+# Based on x-flux ControlNet training setup
+
+# Model Configuration
+model_name: "flux-dev"
+
+# Data Configuration
+data_config:
+  train_batch_size: 4
+  num_workers: 4
+  img_size: 512
+  img_dir: "data/images/"
+
+# Training Parameters
+train_batch_size: 3
+max_train_steps: 100000
+learning_rate: 2e-5  # Higher learning rate for ControlNet
+lr_scheduler: "constant"
+lr_warmup_steps: 10
+
+# Optimizer Configuration
+adam_beta1: 0.9
+adam_beta2: 0.999
+adam_weight_decay: 0.01
+adam_epsilon: 1e-8
+max_grad_norm: 1.0
+
+# Training Strategy
+gradient_accumulation_steps: 2
+mixed_precision: "bf16"
+
+# Checkpointing and Saving
+output_dir: "saves_controlnet/"
+checkpointing_steps: 2500
+checkpoints_total_limit: 10
+resume_from_checkpoint: "latest"
+
+# Logging Configuration
+logging_dir: "logs"
+report_to: "wandb"
+tracker_project_name: "controlnet_training"
+
+# ControlNet Specific Configuration
+controlnet_config:
+  controlnet_depth: 2
+  control_type: "canny"  # Options: "canny", "depth", "pose", "segmentation"
+  
+  # ControlNet preprocessing parameters
+  canny:
+    low_threshold: 100
+    high_threshold: 200
+    
+  depth:
+    model_name: "dpt-large"
+    
+  pose:
+    model_name: "openpose"
+
+# Sampling Configuration
+sampling:
+  sample_every: 500
+  sample_width: 1024
+  sample_height: 1024
+  sample_steps: 20
+  sample_prompts:
+    - "a beautiful landscape with mountains and trees"
+    - "a portrait of a person in a garden"
+
+# Paths Configuration
+paths:
+  output_dir: "saves_controlnet/"
+  logging_dir: "logs"
+  checkpoint_dir: "checkpoints"
+  sample_dir: "samples"
+  dataset_dir: "data/images/"
+
+# Hardware Configuration
+num_gpus: 1
+strategy: "auto"
+
+# Advanced Training Options
+advanced:
+  use_xformers: true
+  enable_attention_slicing: false
+  enable_vae_slicing: false
+  enable_vae_tiling: false
+  gradient_checkpointing: true
+  use_ema: false
+  ema_decay: 0.9999 
