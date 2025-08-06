@@ -37,7 +37,7 @@ This codebase is to do flow model training.
 │   ├── utils/                # Utility tests
 │   │   ├── __init__.py       # Mark as a package
 │   │   └── test_checkpoint.py # Test checkpoint saving/loading
-│   └── fixtures/             # Fixtures and mock data
+│   └── fixtures/             # Fixtures and mock datals
 │       └── mock_data.py      # Example mock dataset for testing
 ├── requirements.txt        # Python dependencies
 ├── main.py                 # Main entry point to start training or inference
