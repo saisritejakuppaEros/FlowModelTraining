@@ -1,0 +1,7 @@
+venv/
+models/
+__pycache__/
+*.png
+*.jpg
+*.latent
+tests.py
