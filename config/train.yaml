@@ -1,0 +1,11 @@
+operation:
+  name: "train"
+
+
+dataset:
+  train_images_path: "dataset/train/images"
+  val_images_path: "dataset/val/images"
+  train_captions_path: "dataset/train/captions"
+  val_captions_path: "dataset/val/captions"
+  test_captions_path: "dataset/test/captions"
+  test_images_path: "dataset/test/images"
