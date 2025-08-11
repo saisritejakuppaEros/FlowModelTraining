@@ -3,11 +3,14 @@ operation:
 
 
 dataset:
-  train_images_path: "dataset/train/images"
-  val_images_path: "dataset/val/images"
-  train_captions_path: "dataset/train/captions"
-  val_captions_path: "dataset/val/captions"
-  test_captions_path: "dataset/test/captions"
-  test_images_path: "dataset/test/images"
-
-
+  train_images_path: "dummy_data/dataset/train/images"
+  val_images_path: "dummy_data/dataset/val/images"
+  train_captions_path: "dummy_data/dataset/train/captions"
+  val_captions_path: "dummy_data/dataset/val/captions"
+  test_captions_path: "dummy_data/dataset/test/captions"
+  test_images_path: "dummy_data/dataset/test/images"
+  train_bs: 4
+  val_bs: 1
+  test_bs: 1
+  augmentation: [Resize, RandomHorizontalFlip, Normalize]
+  image_size: [512, 512]

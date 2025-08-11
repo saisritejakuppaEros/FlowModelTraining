@@ -1,2 +1,3 @@
 flowmodel/
 dummy_data/dataset
+*.pyc
