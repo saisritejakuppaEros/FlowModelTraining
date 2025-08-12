@@ -112,7 +112,7 @@ def collate_fn(examples, with_prior_preservation=False):
     return batch
 
 
-def create_dataloader(config_path, batch_size=4, shuffle=True, num_workers=0, 
+def create_dataloader(config_path, batch_size=2, shuffle=True, num_workers=4, 
                      with_prior_preservation=False, **kwargs):
     """
     Create a dataloader from config file
@@ -121,7 +121,7 @@ def create_dataloader(config_path, batch_size=4, shuffle=True, num_workers=0,
         config_path: Path to config.yaml file
         batch_size: Batch size for dataloader
         shuffle: Whether to shuffle the data
-        num_workers: Number of workers for data loading
+        num_workers: Number of workers for data loading (reduced for multi-GPU)
         with_prior_preservation: Whether to use prior preservation
         **kwargs: Additional arguments for dataset
     
@@ -135,7 +135,9 @@ def create_dataloader(config_path, batch_size=4, shuffle=True, num_workers=0,
         batch_size=batch_size,
         shuffle=shuffle,
         collate_fn=lambda examples: collate_fn(examples, with_prior_preservation),
-        num_workers=num_workers
+        num_workers=num_workers,
+        pin_memory=True,  # Add pin_memory for faster GPU transfer
+        persistent_workers=True if num_workers > 0 else False,  # Keep workers alive between epochs
     )
     
     return dataloader
