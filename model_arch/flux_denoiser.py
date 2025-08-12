@@ -9,7 +9,7 @@ from model_arch.transformer_utils import MultiAxisPositionalEncoding, rope_encod
 from utils.comm import all_gather_with_padding
 from utils.config import BaseParams, ConfigurableModule
 from utils.pack import apply_interleave, plan_interleave
-from knapformer import SequenceBalancer
+# from knapformer import SequenceBalancer
 
 
 @dataclass

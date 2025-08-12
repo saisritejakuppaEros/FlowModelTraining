@@ -1,0 +1,13 @@
+torch==2.7.1
+torchvision==0.22.1
+safetensors>=0.5.3
+PyYAML>=6.0
+wandb>=0.18.0
+transformers>=4.53.3
+sentencepiece>=0.2.0
+pre-commit>=4.2.0
+pillow>=11.3.0
+diffusers>=0.34.0
+knapformer @ git+https://github.com/Kai-46/KnapFormer.git
+torch_fidelity @ git+https://github.com/toshas/torch-fidelity.git
+scipy==1.15.3

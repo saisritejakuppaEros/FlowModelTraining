@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from knapformer import SequenceBalancer
+# from knapformer import SequenceBalancer
 
 if "H100" in torch.cuda.get_device_name():
     from flash_attn_interface import flash_attn_varlen_func

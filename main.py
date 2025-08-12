@@ -2,7 +2,7 @@
 import yaml
 import pprint
 from data_ops.imagecaption_database import ImageCaptionModule
-
+from model_ops.model_trainer import ModelTrainer
 
 
 
@@ -19,13 +19,6 @@ class Operation:
         
         # load the dataset
         train_dataloader, val_dataloader, test_dataloader = ImageCaptionModule(self.config["dataset"]).get_dataloader()
-        
-        
-        # print the no of samples in the train, val and test dataloader
-        print(f"No of samples in train dataloader: {len(train_dataloader)}")
-        print(f"No of samples in val dataloader: {len(val_dataloader)}")
-        print(f"No of samples in test dataloader: {len(test_dataloader)}")
-        
 
         # # get me a batch from the train dataloader
         # for batch in train_dataloader:
@@ -33,6 +26,22 @@ class Operation:
         #     print(imgs.shape)
         #     print(captions)
         #     break
+
+
+        model_trainer = ModelTrainer()
+        model_trainer.load_vae(self.config["model_arch"]["vae"])
+        model_trainer.load_text_encoder(self.config["model_arch"]["text_encoder"])
+        model_trainer.load_clip_encoder(self.config["model_arch"]["clip_encoder"])
+        model_trainer.load_patchifier(self.config["model_arch"]["patchifier"])
+        model_trainer.load_denoiser(self.config["model_arch"]["denoiser"])
+
+
+        # load the sampler
+        # model_trainer.load_timesampler(self.config["model_arch"]["time_sampler"])
+        # model_trainer.load_timewarper(self.config["model_arch"]["time_warper"])
+
+
+
 
 
 def read_config(config_path):

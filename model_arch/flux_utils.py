@@ -6,8 +6,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from models.transformer_utils import apply_attn, apply_rope
-from knapformer import SequenceBalancer
+from model_arch.transformer_utils import apply_attn, apply_rope
+# from knapformer import SequenceBalancer
 
 
 @dataclass

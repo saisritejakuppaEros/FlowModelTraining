@@ -11,9 +11,8 @@ from typing import Any, Generic, TypeVar
 import torch
 
 from utils.fsdp import dist_model_setup
-from utils.log import get_logger
 
-logger = get_logger(__name__)
+from logzero import logger
 
 ParamsT = TypeVar("ParamsT", bound="BaseParams")
 
