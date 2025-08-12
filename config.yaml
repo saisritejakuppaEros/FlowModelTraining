@@ -1,0 +1,9 @@
+# Default config.yaml for training
+
+# Dataset configuration
+dataset:
+  data_dir: "./kag100_images"  # Directory containing your images
+  image_size: 512       # Size to resize images to
+  center_crop: false    # Whether to center crop or random crop
+  # Prompts will be loaded from captions.csv file
+  
