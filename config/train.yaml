@@ -14,3 +14,59 @@ dataset:
   test_bs: 1
   augmentation: [Resize, RandomHorizontalFlip, Normalize]
   image_size: [512, 512]
+
+
+model_arch:
+  # Structured component specifications
+  vae:
+    module: "models.flux_vae.AutoEncoder"
+    params:
+      in_channels: 3
+      z_channels: 16
+      scale_factor: 0.3611
+      shift_factor: 0.1159
+  text_encoder:
+    module: "models.vanilla_embedder.VanillaEmbedder"
+    params:
+      vocab_size: 1001
+      embedding_dim: 768
+      return_datum_lens: true
+  clip_encoder:
+    module: "models.vanilla_embedder.VanillaEmbedder"
+    params:
+      vocab_size: 1001
+      embedding_dim: 768
+      return_datum_lens: false
+  patchifier:
+    module: "models.patchifier.Patchifier"
+    params:
+      patch_size: [ 1, 2, 2 ] # [frames, height, width] - DiT typical
+      vae_latent_channels: 16 # VAE latent channels
+      # must agree with vae
+      vae_compression_factors: [ 1, 8, 8 ] # VAE compression factors [frames, height, width]
+  denoiser:
+    module: "models.flux_denoiser.FluxDenoiser"
+    params:
+      d_model: 1024
+      d_head: 64
+      # n_ds_blocks: 19
+      # n_ss_blocks: 38
+      n_ds_blocks: 8
+      n_ss_blocks: 16
+      d_txt: 768
+      d_vec: 768
+      # must match vae_latent_channels * prod(vae_compression_factors) in patchifier
+      d_img: 64
+      # must have sum equal to d_head;
+      # must have number of elements equal to patch_size in patchifier
+      rope_axis_dim: [ 8, 28, 28 ] # tyx coordinates
+      guidance_embed: false
+    fsdp:
+      meta_device_init: true
+      shard_size: 1
+      param_dtype: "bf16"
+      reduce_dtype: "fp32"
+      ac_freq: 0
+      blocks_attr: [ "double_blocks", "single_blocks" ]
+      reshard_after_forward_policy: "default"
+      blocks_per_shard_group: 12 # -1

@@ -27,12 +27,12 @@ class Operation:
         print(f"No of samples in test dataloader: {len(test_dataloader)}")
         
 
-        # get me a batch from the train dataloader
-        for batch in train_dataloader:
-            imgs, captions = batch["raw_images"], batch["raw_texts"]
-            print(imgs.shape)
-            print(captions)
-            break
+        # # get me a batch from the train dataloader
+        # for batch in train_dataloader:
+        #     imgs, captions = batch["raw_images"], batch["raw_texts"]
+        #     print(imgs.shape)
+        #     print(captions)
+        #     break
 
 
 def read_config(config_path):
