@@ -15,6 +15,10 @@ from ray.train import Checkpoint, RunConfig, ScalingConfig, FailureConfig
 from ray.train.torch import TorchTrainer
 import ray.train.torch
 
+# TensorBoard imports
+from torch.utils.tensorboard import SummaryWriter
+import datetime
+
 # ----- your project imports -----
 from model.dit import DiT
 from common import loss_fn
@@ -186,6 +190,21 @@ def train_func(cfg: Dict[str, Any]) -> None:
         logger.info(f"🎨 Initialized validation generator with {len(cfg['validation_prompts'])} prompts")
         logger.info(f"📁 Validation images will be saved to: {os.path.abspath(output_dir)}")
     
+    # Initialize TensorBoard writer (only on rank 0 to avoid conflicts)
+    tensorboard_writer = None
+    if cfg.get("tensorboard_enabled", True) and ray.train.get_context().get_world_rank() == 0:
+        # Create unique log directory with timestamp and experiment name
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        experiment_name = cfg.get("experiment_name", "sd3_training")
+        log_dir = os.path.join(
+            cfg.get("tensorboard_log_dir", "./tensorboard_logs"),
+            f"{experiment_name}_{timestamp}"
+        )
+        os.makedirs(log_dir, exist_ok=True)
+        tensorboard_writer = SummaryWriter(log_dir)
+        logger.info(f"📊 Initialized TensorBoard logging to: {os.path.abspath(log_dir)}")
+        logger.info(f"🖥️ View logs with: tensorboard --logdir {os.path.abspath(log_dir)}")
+    
     # [1] Prepare model for distributed training
     model = ray.train.torch.prepare_model(model)
     
@@ -291,8 +310,36 @@ def train_func(cfg: Dict[str, Any]) -> None:
             global_step += 1
             
             # Log training loss periodically
-            if batch_idx % 25 == 0 and ray.train.get_context().get_world_rank() == 0:
+            log_interval = cfg.get("tensorboard_log_interval", 25)
+            if batch_idx % log_interval == 0 and ray.train.get_context().get_world_rank() == 0:
                 logger.info(f"Epoch {epoch}, Batch {batch_idx}, Train Loss: {loss_item:.6f}")
+                
+                # TensorBoard logging
+                if tensorboard_writer is not None:
+                    # Log training loss
+                    tensorboard_writer.add_scalar('Training/Loss', loss_item, global_step)
+                    
+                    # Log learning rate
+                    current_lr = scheduler.get_last_lr()[0]
+                    tensorboard_writer.add_scalar('Training/Learning_Rate', current_lr, global_step)
+                    
+                    # Log gradient norms if enabled
+                    if cfg.get("tensorboard_log_gradients", False):
+                        total_norm = 0
+                        for p in model.parameters():
+                            if p.grad is not None:
+                                param_norm = p.grad.data.norm(2)
+                                total_norm += param_norm.item() ** 2
+                        total_norm = total_norm ** (1. / 2)
+                        tensorboard_writer.add_scalar('Training/Gradient_Norm', total_norm, global_step)
+                    
+                    # Log weight histograms if enabled (can be expensive)
+                    if cfg.get("tensorboard_log_weights", False):
+                        for name, param in model.named_parameters():
+                            if param.requires_grad:
+                                tensorboard_writer.add_histogram(f'Weights/{name}', param.data, global_step)
+                                if param.grad is not None:
+                                    tensorboard_writer.add_histogram(f'Gradients/{name}', param.grad.data, global_step)
             
             # Early stopping if max_steps reached
             if cfg["max_steps"] > 0 and global_step >= cfg["max_steps"]:
@@ -397,6 +444,42 @@ def train_func(cfg: Dict[str, Any]) -> None:
             "validation_images_generated": len(validation_images_generated)
         }
         
+        # TensorBoard logging for epoch metrics
+        if tensorboard_writer is not None and ray.train.get_context().get_world_rank() == 0:
+            tensorboard_writer.add_scalar('Epoch/Train_Loss', avg_train_loss, epoch)
+            tensorboard_writer.add_scalar('Epoch/Validation_Loss', avg_val_loss, epoch)
+            tensorboard_writer.add_scalar('Epoch/Learning_Rate', scheduler.get_last_lr()[0], epoch)
+            tensorboard_writer.add_scalar('Epoch/Global_Step', global_step, epoch)
+            
+            # Log validation images to TensorBoard if enabled and images were generated
+            if (cfg.get("tensorboard_log_images", True) and 
+                len(validation_images_generated) > 0 and 
+                validation_generator is not None):
+                try:
+                    # Log first few validation images (limit to 4 to save space)
+                    for idx, img_path in enumerate(validation_images_generated[:4]):
+                        if os.path.exists(img_path):
+                            # Read image and convert to tensor for TensorBoard
+                            from PIL import Image
+                            import torchvision.transforms as transforms
+                            
+                            img = Image.open(img_path).convert('RGB')
+                            transform = transforms.ToTensor()
+                            img_tensor = transform(img)
+                            
+                            # Log image with prompt as caption
+                            prompt = cfg["validation_prompts"][idx] if idx < len(cfg["validation_prompts"]) else f"Image_{idx}"
+                            tensorboard_writer.add_image(f'Validation_Images/Epoch_{epoch}_Image_{idx}', 
+                                                       img_tensor, epoch)
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to log validation images to TensorBoard: {e}")
+            
+            # Add scalars comparing train vs validation loss
+            tensorboard_writer.add_scalars('Loss_Comparison', {
+                'Train': avg_train_loss,
+                'Validation': avg_val_loss
+            }, epoch)
+        
         # Always save checkpoints - Ray will handle checkpoint frequency and retention
         # This ensures all workers report the same structure
         
@@ -445,6 +528,11 @@ def train_func(cfg: Dict[str, Any]) -> None:
         # Early stopping if max_steps reached
         if cfg["max_steps"] > 0 and global_step >= cfg["max_steps"]:
             break
+    
+    # Cleanup TensorBoard writer
+    if tensorboard_writer is not None and ray.train.get_context().get_world_rank() == 0:
+        tensorboard_writer.close()
+        logger.info("📊 TensorBoard writer closed")
 
 
 # =========================

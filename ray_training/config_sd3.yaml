@@ -36,6 +36,14 @@ validation_debug: false  # Enable debug logging for validation generation
 # --------- Checkpoint Configuration ----------
 checkpoint_frequency: 10  # Save checkpoint every N epochs (0 = save every epoch)
 
+# --------- TensorBoard Configuration ----------
+tensorboard_enabled: true  # Enable/disable TensorBoard logging
+tensorboard_log_dir: "./tensorboard_logs"  # Directory for TensorBoard logs
+tensorboard_log_interval: 25  # Log metrics every N batches
+tensorboard_log_images: true  # Log validation images to TensorBoard
+tensorboard_log_gradients: false  # Log gradient histograms (can be expensive)
+tensorboard_log_weights: false  # Log weight histograms (can be expensive)
+
 # --------- Precision Configuration ----------
 dtype: "bfloat16"  # Options: "float16", "bfloat16", "float32"
 
