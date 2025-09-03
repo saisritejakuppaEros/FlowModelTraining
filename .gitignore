@@ -1,2 +1,5 @@
 working_flux/models/model_checkpoints
 working_flux/dataset_preparation/data_cache
+ray_training_flux/ray_results
+ray_training_flux/processed_flux_dataset
+ray_training_flux/data
