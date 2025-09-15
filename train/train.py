@@ -15,12 +15,16 @@ from composer.optim import DecoupledAdamW
 from composer.optim.scheduler import CosineAnnealingWithWarmupScheduler
 from composer.algorithms import GradientClipping
 from composer.loggers import WandBLogger
+from composer.utils import dist
 from streaming import StreamingDataset
 
 import os
 
 # Your FLUX model import
 from model_utils.dit import load_flow_model2
+
+# Let Composer handle distributed setup - don't manually initialize torch.distributed
+
 
 class FluxComposerModel(ComposerModel):
     """Composer wrapper for FLUX flow matching model"""
@@ -107,7 +111,6 @@ def create_flux_dataloader(
     dataset = StreamingDataset(
         local=dataset_path,
         shuffle=shuffle,
-        batch_size=batch_size,
     )
     
     if max_samples:
@@ -115,13 +118,32 @@ def create_flux_dataloader(
         dataset = torch.utils.data.Subset(dataset, range(min(max_samples, len(dataset))))
         print(f"Limited dataset to {len(dataset)} samples")
     
+    # Handle distributed training using Composer's utilities
+    sampler = None
+    if dist.get_world_size() > 1:
+        sampler = dist.get_sampler(
+            dataset,
+            shuffle=shuffle,
+            drop_last=True  # Ensure all ranks have same number of batches
+        )
+        shuffle = False  # Don't shuffle in DataLoader when using DistributedSampler
+    
+    # The batch_size parameter should be per-device batch size, not global
+    # Following the working_code.py pattern where batch_size is already divided by world_size
+    per_device_batch_size = max(1, batch_size // dist.get_world_size())
+    
+    print(f"World size: {dist.get_world_size()}, Global batch size: {batch_size}, Per-device batch size: {per_device_batch_size}")
+    
     # Create dataloader
     dataloader = DataLoader(
         dataset,
-        batch_size=batch_size,
+        batch_size=per_device_batch_size,
+        shuffle=shuffle,
+        sampler=sampler,
         num_workers=num_workers,
         persistent_workers=True if num_workers > 0 else False,
         pin_memory=True,
+        drop_last=True,  # Important for distributed training consistency
     )
     
     print(f"Created dataloader with {len(dataloader)} batches")
@@ -216,6 +238,7 @@ def train_flux_with_composer(
         eval_interval=eval_interval,
         loggers=loggers,
         seed=seed,
+        
     )
     
     # Print training info
@@ -243,7 +266,7 @@ if __name__ == "__main__":
         "dataset_path": "/data0/teja_works/diffusion_training/flux_datastreaming/data_preparation/flux_mds_dataset",
         "output_dir": "./flux_composer_checkpoints", 
         "model_name": "flux-schnell",
-        "batch_size": 4,  # Adjust based on GPU memory
+        "batch_size": 8,  # Global batch size that divides evenly by 8 GPUs (1 per GPU)
         "max_duration": "50ep",
         "learning_rate": 1e-5,
         "weight_decay": 0.01,
