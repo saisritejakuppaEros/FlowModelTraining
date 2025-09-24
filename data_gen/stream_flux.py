@@ -2,7 +2,6 @@ import os
 import json
 import yaml
 from typing import Dict, List, Optional, Iterator, Tuple, Any
-from multiprocessing import Pool
 from glob import glob
 import numpy as np
 from PIL import Image
@@ -21,6 +20,8 @@ from autoencoder import AutoEncoder
 from einops import rearrange, repeat
 import pandas as pd
 import gc
+from accelerate import Accelerator
+from accelerate.utils import set_seed
 
 from streaming import MDSWriter, StreamingDataset
 from streaming.base.util import merge_index
@@ -176,17 +177,30 @@ def prepare_flux_batch(t5_embeds: torch.Tensor, clip_embeds: torch.Tensor, img_l
     """Prepare batch in FLUX format with proper spatial arrangements"""
     bs, c, h, w = img_latents.shape
     
+    print(f"DEBUG: img_latents shape: {img_latents.shape}")
+    print(f"DEBUG: t5_embeds shape: {t5_embeds.shape}")
+    print(f"DEBUG: clip_embeds shape: {clip_embeds.shape}")
+    
     # Rearrange image latents from (b c h w) to (b h*w c*ph*pw) for FLUX
+    # For 256x256 input -> 32x32 latents -> 16x16 patches with ph=pw=2
     img = rearrange(img_latents, "b c (h ph) (w pw) -> b (h w) (c ph pw)", ph=2, pw=2)
     
-    # Create image position IDs
-    img_ids = torch.zeros(h // 2, w // 2, 3)
-    img_ids[..., 1] = img_ids[..., 1] + torch.arange(h // 2)[:, None]
-    img_ids[..., 2] = img_ids[..., 2] + torch.arange(w // 2)[None, :]
+    print(f"DEBUG: rearranged img shape: {img.shape}")
+    
+    # Create image position IDs for the patchified image
+    patch_h, patch_w = h // 2, w // 2  # After patchification with ph=pw=2
+    img_ids = torch.zeros(patch_h, patch_w, 3)
+    img_ids[..., 1] = img_ids[..., 1] + torch.arange(patch_h)[:, None]
+    img_ids[..., 2] = img_ids[..., 2] + torch.arange(patch_w)[None, :]
     img_ids = repeat(img_ids, "h w c -> b (h w) c", b=bs)
     
     # Create text position IDs
     txt_ids = torch.zeros(bs, t5_embeds.shape[1], 3)
+    
+    print(f"DEBUG: final img shape: {img.shape}")
+    print(f"DEBUG: final img_ids shape: {img_ids.shape}")
+    print(f"DEBUG: final txt shape: {t5_embeds.shape}")
+    print(f"DEBUG: final txt_ids shape: {txt_ids.shape}")
     
     return {
         "img": img,
@@ -236,16 +250,22 @@ class FLUXProcessor:
             self.torch_dtype = torch.float16
             self.numpy_dtype = np.float16
         
-        # Set device - use gpu_id if provided, otherwise device parameter
+        # Set device - GPU only, no CPU fallback
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA is not available. This script requires GPU.")
+        
         if gpu_id is not None:
+            if gpu_id >= torch.cuda.device_count():
+                raise RuntimeError(f"GPU {gpu_id} is not available. Only {torch.cuda.device_count()} GPUs found.")
+            torch.cuda.set_device(gpu_id)
             self.device = torch.device(f"cuda:{gpu_id}")
             print(f"Using GPU {gpu_id}: {self.device}")
         elif device:
             self.device = torch.device(device)
             print(f"Using device: {self.device}")
         else:
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            print(f"Using default device: {self.device}")
+            self.device = torch.device("cuda:0")  # Default to GPU 0
+            print(f"Using default GPU: {self.device}")
         
         # Load models with proper device placement
         self._load_models(ae_name, clip_model, t5_model)
@@ -388,14 +408,18 @@ class FLUXProcessor:
         
         return result
 
-def convert_dataset_partition_multigpu(samples: List[Dict], config: Dict, output_dir: str, partition_id: int, gpu_id: int) -> None:
-    """Convert a partition of the dataset to MDS format using specific GPU"""
+def convert_dataset_partition_accelerate(samples: List[Dict], config: Dict, output_dir: str, partition_id: int) -> None:
+    """Convert a partition of the dataset to MDS format using Accelerate"""
+    
+    # Initialize Accelerator
+    accelerator = Accelerator()
+    device = accelerator.device
     
     sub_out_root = os.path.join(output_dir, str(partition_id))
     
-    print(f"Processing partition {partition_id} with {len(samples)} samples on GPU {gpu_id}")
+    print(f"Processing partition {partition_id} with {len(samples)} samples on device {device}")
     
-    # Initialize FLUX processor with specific GPU
+    # Initialize FLUX processor with Accelerate device
     processor = FLUXProcessor(
         resolution=config.get("resolution", 256),
         ae_name=config.get("ae_name", "flux-schnell"),
@@ -406,7 +430,7 @@ def convert_dataset_partition_multigpu(samples: List[Dict], config: Dict, output
         dtype=config.get("dtype", "bfloat16"),
         min_aesthetic=config.get("min_aesthetic", None),
         drop_invalid=config.get("drop_invalid", True),
-        gpu_id=gpu_id,
+        device=str(device),
     )
     
     # Define MDS columns - using efficient numpy array encodings
@@ -418,6 +442,10 @@ def convert_dataset_partition_multigpu(samples: List[Dict], config: Dict, output
     latent_h = latent_w = resolution // 8  # FLUX uses 8x downsampling
     flux_img_tokens = (latent_h // 2) * (latent_w // 2)  # After patchification
     flux_img_dim = 16 * 4  # c * ph * pw where ph=pw=2
+    
+    print(f"DEBUG: resolution={resolution}, latent_h={latent_h}, latent_w={latent_w}")
+    print(f"DEBUG: flux_img_tokens={flux_img_tokens}, flux_img_dim={flux_img_dim}")
+    print(f"DEBUG: max_length_t5={max_length_t5}")
     
     columns = {
         'img_latents': f'ndarray:float16:{flux_img_tokens},{flux_img_dim}',
@@ -520,6 +548,15 @@ def create_dataset_partitions(data_path: str, num_partitions: int, max_samples: 
     return partitions
 
 def main():
+    # Initialize Accelerator with multi-GPU support
+    accelerator = Accelerator()
+    device = accelerator.device
+    
+    print(f"Using device: {device}")
+    print(f"Number of processes: {accelerator.num_processes}")
+    print(f"Process index: {accelerator.process_index}")
+    print(f"Local process index: {accelerator.local_process_index}")
+    
     # Load configuration
     try:
         with open("config_flux_mosaicml.yaml", "r") as f:
@@ -530,8 +567,6 @@ def main():
             "data_path": "image_captions.csv",
             "output_dir": "./flux_mds_dataset",
             "resolution": 256,  # Final resolution after center crop 1024->256
-            "num_partitions": 3,  # One per GPU (5, 6, 7)
-            "gpu_ids": [5, 6, 7],  # Specific GPUs to use
             "ae_name": "flux-schnell",
             "clip_model": "openai/clip-vit-large-patch14",
             "t5_model": "xlabs-ai/xflux_text_encoders",
@@ -543,48 +578,45 @@ def main():
             "compression": "zstd:3",
             "hashes": ["sha256"],
             "size_limit": "100mb",
-            "max_samples": 50000,
+            "max_samples": 500,  # Reduce for testing
         }
         print("Using default configuration. Create config_flux_mosaicml.yaml to customize.")
     
     data_path = config["data_path"]
     output_dir = config["output_dir"]
-    num_partitions = config["num_partitions"]
-    gpu_ids = config.get("gpu_ids", [5, 6, 7])
     
     print(f"Converting dataset from {data_path} to MDS format at {output_dir}")
     print(f"Using center crop 1024x1024 -> resize {config['resolution']}x{config['resolution']}")
-    print(f"Using GPUs: {gpu_ids}")
+    print(f"Using device: {device}")
     
-    # Ensure we have enough GPUs
-    if len(gpu_ids) < num_partitions:
-        print(f"Warning: Only {len(gpu_ids)} GPUs available for {num_partitions} partitions. Some GPUs will process multiple partitions.")
+    # Check GPU availability - GPU only
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA is not available. This script requires GPU.")
     
-    # Create partitions with limit
-    max_samples = config.get("max_samples", 50000)
-    print(f"Creating dataset partitions (max {max_samples} samples)...")
-    partitions = create_dataset_partitions(data_path, num_partitions, max_samples)
+    # Load dataset
+    if data_path.endswith('.csv'):
+        df = pd.read_csv(data_path)
+        samples = df.to_dict('records')
+    elif data_path.endswith('.json'):
+        with open(data_path, 'r') as f:
+            samples = json.load(f)
+    else:
+        raise ValueError("Unsupported file format. Use .csv or .json")
+    
+    # Limit number of samples if specified
+    max_samples = config.get("max_samples", 500)
+    if max_samples and max_samples < len(samples):
+        samples = samples[:max_samples]
+        print(f"Limited dataset to first {max_samples} samples (from {len(samples)} total)")
     
     # Clean up output directory
     if os.path.exists(output_dir):
         import shutil
         shutil.rmtree(output_dir)
     
-    # Prepare arguments for multiprocessing with GPU assignment
-    args_list = []
-    for i, partition in enumerate(partitions):
-        gpu_id = gpu_ids[i % len(gpu_ids)]  # Cycle through available GPUs
-        args_list.append((partition, config, output_dir, i, gpu_id))
-    
-    print(f"Processing {num_partitions} partitions with multiprocessing on GPUs {gpu_ids}...")
-    
-    # Use multiprocessing with manual GPU assignment
-    with Pool(processes=min(num_partitions, len(gpu_ids))) as pool:
-        pool.starmap(convert_dataset_partition_multigpu, args_list)
-    
-    # Merge index files
-    print("Merging partition indices...")
-    merge_index(output_dir, keep_local=True)
+    # Process all samples with Accelerate
+    print(f"Processing {len(samples)} samples on device {device}...")
+    convert_dataset_partition_accelerate(samples, config, output_dir, 0)
     
     print("Dataset conversion completed!")
     

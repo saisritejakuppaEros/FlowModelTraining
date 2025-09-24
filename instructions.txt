@@ -1,0 +1,5 @@
+conda activate teja_streaming
+pip install --upgrade torch torchvision
+pip install mosaicml-streaming
+pip install mosaicml
+pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0

@@ -23,9 +23,7 @@ def main():
     cmd = ["python", str(target_script)]
     
     print("Launching FLUX dataset generation with multi-GPU support...")
-    print(f"Command: {' '.join(cmd)}")
-    print("Using GPUs: 5, 6, 7 (configured in script)")
-    
+    print(f"Command: {' '.join(cmd)}")    
     try:
         # Run the command
         result = subprocess.run(cmd, check=True)
