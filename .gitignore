@@ -3,3 +3,4 @@ data_gen/flux_mds_dataset
 data_gen/image_captions.csv
 train/my_tensorboard_logs
 train/flux_composer_checkpoints
+microdiffusion
