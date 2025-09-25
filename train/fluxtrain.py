@@ -276,6 +276,8 @@ def train():
             'save_interval': "10ep",
             'eval_interval': "5ep",
             'save_folder': "./flux_composer_checkpoints",
+            'run_name': "flux_training_run",
+            'autoresume': True,
         },
         'algorithms': {
             'gradient_clipping': {'clip_norm': 1.0}
@@ -370,6 +372,8 @@ def train():
         save_folder=cfg['trainer']['save_folder'],
         save_interval=cfg['trainer']['save_interval'],
         eval_interval=cfg['trainer']['eval_interval'],
+        run_name=cfg['trainer']['run_name'],
+        autoresume=cfg['trainer']['autoresume'],
         device="gpu" if torch.cuda.is_available() else "cpu",
         seed=cfg['seed'],
     )
