@@ -178,4 +178,4 @@ if __name__ == "__main__":
     
     # Generate CSV with cleaned captions
     # You can specify sample_size to process only a subset for testing
-    generate_csv_from_json_files(sample_size=500)
+    generate_csv_from_json_files(sample_size=5000)

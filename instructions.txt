@@ -1,5 +1,20 @@
-conda activate teja_streaming
-pip install --upgrade torch torchvision
+conda activate teja_streaming_2
 pip install mosaicml-streaming
 pip install mosaicml
-pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0
+pip install einops
+pip install pandas
+ppi install accelerate
+pip install sentencepiece
+
+
+python data_gen/csv_generation.py
+accelerate launch stream_flux.py 
+composer -n 6 fluxtrain.py 
+
+# to kill zombie process
+ps aux | grep fluxtrain.py
+pkill -f fluxtrain.py
+
+
+# since some of the gpus are always busy
+export CUDA_VISIBLE_DEVICES=1,2,3,4,6,7

@@ -1,4 +1,16 @@
 import os
+
+# Set NCCL environment variables before importing PyTorch
+os.environ['NCCL_NVLS_ENABLE'] = '0'          # Disable NVLS transport
+os.environ['NCCL_TREE_THRESHOLD'] = '0'       # Force ring algorithms
+os.environ['NCCL_NET_GDR_LEVEL'] = '0'        # Disable GPU Direct RDMA
+os.environ['NCCL_P2P_LEVEL'] = 'SYS'          # Enable system-level P2P
+os.environ['NCCL_SHM_DISABLE'] = '0'          # Ensure shared memory enabled
+os.environ['NCCL_ALGO'] = 'Ring'              # Force ring algorithm
+os.environ['NCCL_TIMEOUT'] = '1800'           # 30 minute timeout
+os.environ['NCCL_DEBUG'] = 'WARN'             # Reduce debug output
+
+import os
 import json
 import yaml
 from typing import Dict, List, Optional, Iterator, Tuple, Any
@@ -177,15 +189,15 @@ def prepare_flux_batch(t5_embeds: torch.Tensor, clip_embeds: torch.Tensor, img_l
     """Prepare batch in FLUX format with proper spatial arrangements"""
     bs, c, h, w = img_latents.shape
     
-    print(f"DEBUG: img_latents shape: {img_latents.shape}")
-    print(f"DEBUG: t5_embeds shape: {t5_embeds.shape}")
-    print(f"DEBUG: clip_embeds shape: {clip_embeds.shape}")
+    # print(f"DEBUG: img_latents shape: {img_latents.shape}")
+    # print(f"DEBUG: t5_embeds shape: {t5_embeds.shape}")
+    # print(f"DEBUG: clip_embeds shape: {clip_embeds.shape}")
     
     # Rearrange image latents from (b c h w) to (b h*w c*ph*pw) for FLUX
     # For 256x256 input -> 32x32 latents -> 16x16 patches with ph=pw=2
     img = rearrange(img_latents, "b c (h ph) (w pw) -> b (h w) (c ph pw)", ph=2, pw=2)
     
-    print(f"DEBUG: rearranged img shape: {img.shape}")
+    # print(f"DEBUG: rearranged img shape: {img.shape}")
     
     # Create image position IDs for the patchified image
     patch_h, patch_w = h // 2, w // 2  # After patchification with ph=pw=2
@@ -197,10 +209,10 @@ def prepare_flux_batch(t5_embeds: torch.Tensor, clip_embeds: torch.Tensor, img_l
     # Create text position IDs
     txt_ids = torch.zeros(bs, t5_embeds.shape[1], 3)
     
-    print(f"DEBUG: final img shape: {img.shape}")
-    print(f"DEBUG: final img_ids shape: {img_ids.shape}")
-    print(f"DEBUG: final txt shape: {t5_embeds.shape}")
-    print(f"DEBUG: final txt_ids shape: {txt_ids.shape}")
+    # print(f"DEBUG: final img shape: {img.shape}")
+    # print(f"DEBUG: final img_ids shape: {img_ids.shape}")
+    # print(f"DEBUG: final txt shape: {t5_embeds.shape}")
+    # print(f"DEBUG: final txt_ids shape: {txt_ids.shape}")
     
     return {
         "img": img,
@@ -408,16 +420,28 @@ class FLUXProcessor:
         
         return result
 
-def convert_dataset_partition_accelerate(samples: List[Dict], config: Dict, output_dir: str, partition_id: int) -> None:
+def convert_dataset_partition_accelerate(samples: List[Dict], config: Dict, output_dir: str, accelerator: Accelerator) -> None:
     """Convert a partition of the dataset to MDS format using Accelerate"""
     
-    # Initialize Accelerator
-    accelerator = Accelerator()
     device = accelerator.device
+    process_index = accelerator.process_index
+    num_processes = accelerator.num_processes
     
-    sub_out_root = os.path.join(output_dir, str(partition_id))
+    # Each process gets its own output directory
+    sub_out_root = os.path.join(output_dir, str(process_index))
     
-    print(f"Processing partition {partition_id} with {len(samples)} samples on device {device}")
+    # Split samples across processes
+    samples_per_process = len(samples) // num_processes
+    start_idx = process_index * samples_per_process
+    if process_index == num_processes - 1:  # Last process gets remaining samples
+        end_idx = len(samples)
+    else:
+        end_idx = (process_index + 1) * samples_per_process
+    
+    process_samples = samples[start_idx:end_idx]
+    
+    print(f"Process {process_index}: Processing {len(process_samples)} samples on device {device}")
+    print(f"Process {process_index}: Sample range {start_idx}-{end_idx-1} out of {len(samples)} total")
     
     # Initialize FLUX processor with Accelerate device
     processor = FLUXProcessor(
@@ -443,9 +467,9 @@ def convert_dataset_partition_accelerate(samples: List[Dict], config: Dict, outp
     flux_img_tokens = (latent_h // 2) * (latent_w // 2)  # After patchification
     flux_img_dim = 16 * 4  # c * ph * pw where ph=pw=2
     
-    print(f"DEBUG: resolution={resolution}, latent_h={latent_h}, latent_w={latent_w}")
-    print(f"DEBUG: flux_img_tokens={flux_img_tokens}, flux_img_dim={flux_img_dim}")
-    print(f"DEBUG: max_length_t5={max_length_t5}")
+    # print(f"DEBUG: resolution={resolution}, latent_h={latent_h}, latent_w={latent_w}")
+    # print(f"DEBUG: flux_img_tokens={flux_img_tokens}, flux_img_dim={flux_img_dim}")
+    # print(f"DEBUG: max_length_t5={max_length_t5}")
     
     columns = {
         'img_latents': f'ndarray:float16:{flux_img_tokens},{flux_img_dim}',
@@ -475,7 +499,7 @@ def convert_dataset_partition_accelerate(samples: List[Dict], config: Dict, outp
     
     try:
         with MDSWriter(**mds_kwargs) as out:
-            for i, sample in enumerate(samples):
+            for i, sample in enumerate(process_samples):
                 try:
                     img_path = sample.get('image_path') or sample.get('img_path') or sample.get('image')
                     caption = sample.get('caption_text') or sample.get('caption') or sample.get('text') or sample.get('captions')
@@ -494,17 +518,17 @@ def convert_dataset_partition_accelerate(samples: List[Dict], config: Dict, outp
                         failed_samples += 1
                         # Debug first few failures
                         if failed_samples <= 5:
-                            print(f"Sample {i} failed - img_path: {img_path}, caption: {caption[:50] if caption else 'None'}...")
+                            print(f"Process {process_index} Sample {i} failed - img_path: {img_path}, caption: {caption[:50] if caption else 'None'}...")
                         
                     if (i + 1) % 100 == 0:
-                        print(f"Partition {partition_id}: Processed {i+1}/{len(samples)} samples "
+                        print(f"Process {process_index}: Processed {i+1}/{len(process_samples)} samples "
                               f"(Success: {successful_samples}, Failed: {failed_samples})")
                         # Clear cache periodically
                         if torch.cuda.is_available():
                             torch.cuda.empty_cache()
                         
                 except Exception as e:
-                    print(f"Error processing sample {i} in partition {partition_id}: {e}")
+                    print(f"Error processing sample {i} in process {process_index}: {e}")
                     print(f"Sample data: img_path={img_path}, caption={caption[:50] if caption else 'None'}...")
                     failed_samples += 1
                     continue
@@ -512,40 +536,8 @@ def convert_dataset_partition_accelerate(samples: List[Dict], config: Dict, outp
         # Clean up processor to free GPU memory
         processor.cleanup()
     
-    print(f"Partition {partition_id} completed: {successful_samples} successful, {failed_samples} failed")
+    print(f"Process {process_index} completed: {successful_samples} successful, {failed_samples} failed")
 
-def create_dataset_partitions(data_path: str, num_partitions: int, max_samples: int = None) -> List[List[Dict]]:
-    """Create partitions from the dataset"""
-    # Load dataset
-    if data_path.endswith('.csv'):
-        df = pd.read_csv(data_path)
-        samples = df.to_dict('records')
-    elif data_path.endswith('.json'):
-        with open(data_path, 'r') as f:
-            samples = json.load(f)
-    else:
-        raise ValueError("Unsupported file format. Use .csv or .json")
-    
-    # Limit number of samples if specified
-    if max_samples and max_samples < len(samples):
-        samples = samples[:max_samples]
-        print(f"Limited dataset to first {max_samples} samples (from {len(samples)} total)")
-    
-    # Create partitions
-    partition_size = len(samples) // num_partitions
-    partitions = []
-    
-    for i in range(num_partitions):
-        start_idx = i * partition_size
-        if i == num_partitions - 1:  # Last partition gets remaining samples
-            end_idx = len(samples)
-        else:
-            end_idx = (i + 1) * partition_size
-        
-        partition = samples[start_idx:end_idx]
-        partitions.append(partition)
-    
-    return partitions
 
 def main():
     # Initialize Accelerator with multi-GPU support
@@ -564,7 +556,7 @@ def main():
     except FileNotFoundError:
         # Default config
         config = {
-            "data_path": "image_captions.csv",
+            "data_path": "image_captions_cleaned.csv",
             "output_dir": "./flux_mds_dataset",
             "resolution": 256,  # Final resolution after center crop 1024->256
             "ae_name": "flux-schnell",
@@ -578,7 +570,7 @@ def main():
             "compression": "zstd:3",
             "hashes": ["sha256"],
             "size_limit": "100mb",
-            "max_samples": 500,  # Reduce for testing
+            "max_samples": 50000,  # Reduce for testing
         }
         print("Using default configuration. Create config_flux_mosaicml.yaml to customize.")
     
@@ -614,27 +606,51 @@ def main():
         import shutil
         shutil.rmtree(output_dir)
     
-    # Process all samples with Accelerate
-    print(f"Processing {len(samples)} samples on device {device}...")
-    convert_dataset_partition_accelerate(samples, config, output_dir, 0)
+    # Process samples with proper GPU distribution
+    print(f"Processing {len(samples)} samples across {accelerator.num_processes} processes...")
+    convert_dataset_partition_accelerate(samples, config, output_dir, accelerator)
     
-    print("Dataset conversion completed!")
+    # Wait for all processes to finish
+    accelerator.wait_for_everyone()
+    print(f"Process {accelerator.process_index} finished processing")
     
-    # Test loading
-    print("Testing dataset loading...")
-    try:
-        dataset = StreamingDataset(local=output_dir, shuffle=False, batch_size=1)
-        sample = next(iter(dataset))
+    # Merge the mds shards created by each device (only do on main process)
+    if accelerator.is_main_process:
+        print("Merging shards from all processes...")
+        import time
+        time.sleep(5)  # Give other processes time to finish writing
         
-        print("Sample keys:", list(sample.keys()))
-        for key in ["img_latents", "txt_embeds", "vec_embeds"]:
-            if key in sample:
-                print(f"{key} shape:", sample[key].shape)
-                
-        print(f"Dataset contains {len(dataset)} samples")
+        shards_metadata = [
+            os.path.join(output_dir, str(i), 'index.json')
+            for i in range(accelerator.num_processes)
+        ]
         
-    except Exception as e:
-        print(f"Error testing dataset: {e}")
+        # Check which shards actually exist
+        existing_shards = [shard for shard in shards_metadata if os.path.exists(shard)]
+        print(f"Found {len(existing_shards)} shards to merge")
+        
+        if existing_shards:
+            merge_index(existing_shards, out=output_dir, keep_local=True)
+            print("Dataset conversion and merging completed!")
+        else:
+            print("No shards found to merge")
+    
+    # Test loading (only on main process)
+    if accelerator.is_main_process:
+        print("Testing dataset loading...")
+        try:
+            dataset = StreamingDataset(local=output_dir, shuffle=False, batch_size=1)
+            sample = next(iter(dataset))
+            
+            print("Sample keys:", list(sample.keys()))
+            for key in ["img_latents", "txt_embeds", "vec_embeds"]:
+                if key in sample:
+                    print(f"{key} shape:", sample[key].shape)
+                    
+            print(f"Dataset contains {len(dataset)} samples")
+            
+        except Exception as e:
+            print(f"Error testing dataset: {e}")
 
 if __name__ == "__main__":
     main()

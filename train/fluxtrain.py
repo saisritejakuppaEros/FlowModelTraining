@@ -142,33 +142,17 @@ class FluxComposerModel(ComposerModel):
         # FLUX expects: img [B, seq_len, dim] and txt [B, seq_len, dim]
         
         # Debug: Print tensor shapes before reshaping
-        print(f"Original x_t shape: {x_t.shape}")
-        print(f"Original txt_embeds shape: {txt_embeds.shape}")
+        # print(f"Original x_t shape: {x_t.shape}")
+        # print(f"Original txt_embeds shape: {txt_embeds.shape}")
         
         # The tensors should already be in the correct 3D format from dataset preparation
         # Expected shapes:
         # - x_t: [B, 256, 64] (256 tokens, 64 features each)
         # - txt_embeds: [B, 512, 4096] (512 tokens, 4096 features each)
         
-        if x_t.ndim != 3:
-            print(f"WARNING: x_t is not 3D, shape: {x_t.shape}")
-            if x_t.ndim == 2:
-                # If 2D, add sequence dimension
-                x_t = x_t.unsqueeze(1)  # [B, 1, features]
-            elif x_t.ndim == 4:
-                # If 4D [B, C, H, W], reshape to [B, H*W, C]
-                B, C, H, W = x_t.shape
-                x_t = x_t.permute(0, 2, 3, 1).reshape(B, H*W, C)
-        
-        if txt_embeds.ndim != 3:
-            print(f"WARNING: txt_embeds is not 3D, shape: {txt_embeds.shape}")
-            if txt_embeds.ndim == 2:
-                # If 2D, add sequence dimension
-                txt_embeds = txt_embeds.unsqueeze(1)  # [B, 1, dim]
-        
         # Debug: Print tensor shapes after reshaping
-        print(f"Final x_t shape: {x_t.shape}")
-        print(f"Final txt_embeds shape: {txt_embeds.shape}")
+        # print(f"Final x_t shape: {x_t.shape}")
+        # print(f"Final txt_embeds shape: {txt_embeds.shape}")
         
         # Validate expected dimensions
         if x_t.shape[1] != 256 or x_t.shape[2] != 64:
@@ -246,7 +230,7 @@ def train():
         'dataset': {
             'train_batch_size': 8,
             'eval_batch_size': 8,
-            'datadir': "/data0/teja_works/diffusion_training/nvidia_tools_training/mosicml_code/FlowModelTraining/data_gen/flux_mds_dataset/0",
+            'datadir': "/data0/teja_works/diffusion_training/nvidia_tools_training/mosicml_code/FlowModelTraining/data_gen/flux_mds_dataset",
             'num_workers': 16,
         },
         'model': {
