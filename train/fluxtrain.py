@@ -23,12 +23,16 @@ import composer
 from composer import Trainer
 from composer.core import Precision
 from composer.models import ComposerModel
-from composer.optim import DecoupledAdamW
 from composer.optim.scheduler import CosineAnnealingWithWarmupScheduler
 from composer.algorithms import GradientClipping
 from composer.loggers import WandBLogger
 from composer.utils import dist, reproducibility
 from streaming import Stream, StreamingDataset
+from composer.loggers import TensorboardLogger
+
+# Initialize TensorBoard logger with proper configuration
+tb_logger = TensorboardLogger(log_dir="./my_tensorboard_logs")
+
 
 import os
 import time
@@ -109,6 +113,10 @@ class FluxComposerModel(ComposerModel):
         # Flow matching parameters
         self.sigma = 1.0  # Noise scale
         
+        # Initialize metrics tracking
+        self.train_loss = torch.tensor(0.0)
+        self.eval_loss = torch.tensor(0.0)
+        
     def forward(self, batch: Dict[str, Any]) -> torch.Tensor:
         """Forward pass for training"""
         
@@ -187,8 +195,23 @@ class FluxComposerModel(ComposerModel):
         return loss
     
     def metrics(self, train: bool = False) -> Dict[str, Any]:
-        """Define metrics to track"""
-        return {}
+        """Define metrics to track - Composer will automatically log these to TensorBoard"""
+        if train:
+            return {
+                'train/loss': self.train_loss,
+            }
+        else:
+            return {
+                'eval/loss': self.eval_loss,
+            }
+    
+    def update_metric(self, batch: Dict[str, Any], outputs: Any, metric_name: str, metric_value: torch.Tensor) -> None:
+        """Update metrics during training/evaluation"""
+        if metric_name == 'loss':
+            if hasattr(self, 'train_loss'):
+                self.train_loss = metric_value.detach()
+            if hasattr(self, 'eval_loss'):
+                self.eval_loss = metric_value.detach()
 
 
 def build_flux_streaming_dataloader(
@@ -238,13 +261,15 @@ def train():
             'dtype': 'bfloat16'
         },
         'optimizer': {
-            'lr': 1e-5,
-            'weight_decay': 0.01,
-            'betas': [0.9, 0.999]
+            'lr': 2.4e-4,
+            'weight_decay': 0.1,
+            'betas': [0.9, 0.999],
+            'eps': 1.0e-8
         },
         'scheduler': {
-            'warmup_duration': "100ba",
+            'warmup_duration': "2500ba",
             'max_duration': "50ep",
+            'alpha_f': 0.33
         },
         'trainer': {
             'max_duration': "50ep",
@@ -269,13 +294,13 @@ def train():
     print("Initializing FLUX Composer model...")
     model = FluxComposerModel(model_name=cfg['model']['name'])
 
-    # Set up optimizer - exact pattern from working code
-    optimizer = DecoupledAdamW(
+    # Set up optimizer - using micro_diffusion pattern
+    optimizer = torch.optim.AdamW(
         params=model.parameters(), 
         lr=cfg['optimizer']['lr'],
         weight_decay=cfg['optimizer']['weight_decay'],
         betas=cfg['optimizer']['betas'],
-        eps=1e-8
+        eps=cfg['optimizer']['eps']
     )
 
     # Convert ListConfig betas to native list to avoid ValueError when saving optimizer state
@@ -309,7 +334,7 @@ def train():
     time.sleep(3)
 
     # Initialize training components
-    logger, callbacks, algorithms = [], [], []
+    logger, callbacks, algorithms = [tb_logger], [], []
 
     # Configure algorithms
     if 'algorithms' in cfg:
@@ -322,7 +347,7 @@ def train():
     scheduler = CosineAnnealingWithWarmupScheduler(
         t_warmup=cfg['scheduler']['warmup_duration'],
         t_max=cfg['scheduler']['max_duration'],
-        alpha_f=0.1
+        alpha_f=cfg['scheduler']['alpha_f']
     )
 
     # disable online evals if using torch.compile
@@ -357,4 +382,7 @@ def train():
 
 
 if __name__ == '__main__':
+    print("Starting FLUX training with TensorBoard logging...")
+    print("To view training logs, run: tensorboard --logdir=./my_tensorboard_logs")
+    print("Then open http://localhost:6006 in your browser")
     train()

@@ -5,6 +5,7 @@ pip install einops
 pip install pandas
 ppi install accelerate
 pip install sentencepiece
+pip install 'mosaicml[tensorboard]'
 
 
 python data_gen/csv_generation.py
@@ -18,3 +19,6 @@ pkill -f fluxtrain.py
 
 # since some of the gpus are always busy
 export CUDA_VISIBLE_DEVICES=1,2,3,4,6,7
+
+# to monitor the tensorboard
+tensorboard --logdir='./my_tensorboard_logs'
