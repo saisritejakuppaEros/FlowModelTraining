@@ -1,0 +1,16 @@
+# Configuration for Flux Mosaic Model Training
+data_path: "dataset_output/csv_files/train.csv"  # Path to the dataset file
+output_dir: "dataset_output/mds/train_data"  # Directory to save the processed data
+resolution: 256  # Final resolution after center crop (1024 -> 256)
+ae_name: "flux-schnell"  # Name of the autoencoder model
+clip_model: "openai/clip-vit-large-patch14"  # Pretrained CLIP model
+t5_model: "xlabs-ai/xflux_text_encoders"  # Pretrained T5 text encoder model
+max_length_clip: 77  # Maximum length for CLIP model inputs
+max_length_t5: 512  # Maximum length for T5 model inputs
+dtype: "bfloat16"  # Data type to use for computation
+min_aesthetic: null  # Minimum aesthetic score (optional, can be adjusted)
+drop_invalid: true  # Whether to drop invalid samples
+compression: "zstd:3"  # Compression algorithm and level
+hashes: ["sha256"]  # Hash algorithms to be used
+size_limit: "100mb"  # Maximum file size allowed
+max_samples: 50000  # Maximum number of samples to process (reduce for testing)

@@ -4,3 +4,8 @@ data_gen/image_captions.csv
 train/my_tensorboard_logs
 train/flux_composer_checkpoints
 microdiffusion
+data_gen/dataset_output
+FlowModelTraining
+data_gen/vae_test_results
+sa_2848197.jpg
+train/inference_samples

@@ -10,7 +10,7 @@ pip install 'mosaicml[tensorboard]'
 
 python data_gen/csv_generation.py
 accelerate launch stream_flux.py 
-composer -n 6 fluxtrain.py 
+composer -n 3 fluxtrain.py 
 
 # to kill zombie process
 ps aux | grep fluxtrain.py
@@ -18,7 +18,7 @@ pkill -f fluxtrain.py
 
 
 # since some of the gpus are always busy
-export CUDA_VISIBLE_DEVICES=1,2,3,4,6,7
+export CUDA_VISIBLE_DEVICES=1,2,3
 
 # to monitor the tensorboard
 tensorboard --logdir='./my_tensorboard_logs'

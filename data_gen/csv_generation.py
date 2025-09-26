@@ -7,8 +7,6 @@ from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
-captions_path = '/data0/teja_works/sd3_dataset/data/extracted_dataset_captions'
-
 def clean_caption(caption):
     """
     Clean caption by removing unwanted characters and formatting issues
@@ -60,7 +58,7 @@ def clean_caption(caption):
     
     return caption
 
-def process_json_file(json_file):
+def process_json_file(json_file, captions_path):
     """
     Process a single JSON file and extract image path and cleaned caption
     """
@@ -93,7 +91,7 @@ def process_json_file(json_file):
         print(f"Error processing {json_file}: {e}")
         return None
 
-def generate_csv_from_json_files(max_workers=None, sample_size=None):
+def generate_csv_from_json_files(captions_path, output_csv, max_workers=None, sample_size=None):
     """
     Read all JSON files from the captions directory and create a CSV file
     with columns: image_path, captions using multithreading for faster processing
@@ -117,7 +115,7 @@ def generate_csv_from_json_files(max_workers=None, sample_size=None):
     # Use ThreadPoolExecutor for concurrent processing
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit all tasks
-        future_to_file = {executor.submit(process_json_file, json_file): json_file 
+        future_to_file = {executor.submit(process_json_file, json_file, captions_path): json_file 
                          for json_file in json_files}
         
         # Process completed tasks with progress bar
@@ -129,8 +127,6 @@ def generate_csv_from_json_files(max_workers=None, sample_size=None):
                 csv_data.append(result)
     
     # Write to CSV file
-    output_csv = 'image_captions_cleaned.csv'
-    
     with open(output_csv, 'w', newline='', encoding='utf-8') as csvfile:
         fieldnames = ['image_path', 'captions']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -173,9 +169,28 @@ def test_caption_cleaning():
         print()
 
 if __name__ == "__main__":
+
+
+
+    import os
+    os.makedirs('dataset_output/csv_files', exist_ok=True)
+
+    # Define paths and output file name
+    captions_path = '/data0/teja_works/sd3_dataset/data/extracted_dataset_captions'
+    output_csv = 'dataset_output/csv_files/train.csv'
+    
     # Uncomment the line below to test caption cleaning first
     # test_caption_cleaning()
     
     # Generate CSV with cleaned captions
     # You can specify sample_size to process only a subset for testing
-    generate_csv_from_json_files(sample_size=5000)
+    generate_csv_from_json_files(captions_path, output_csv, sample_size=5000)
+
+
+    captions_path = '/data0/teja_works/sd3_dataset/data/extracted_dataset_captions'
+    output_csv = 'dataset_output/csv_files/val.csv'
+    generate_csv_from_json_files(captions_path, output_csv, sample_size=20)
+
+    captions_path = '/data0/teja_works/sd3_dataset/data/extracted_dataset_captions'
+    output_csv = 'dataset_output/csv_files/test.csv'
+    generate_csv_from_json_files(captions_path, output_csv, sample_size=20)

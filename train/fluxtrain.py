@@ -1,14 +1,26 @@
 import os
+import yaml
+from pathlib import Path
 
-# Set NCCL environment variables before importing PyTorch
-os.environ['NCCL_NVLS_ENABLE'] = '0'          # Disable NVLS transport
-os.environ['NCCL_TREE_THRESHOLD'] = '0'       # Force ring algorithms
-os.environ['NCCL_NET_GDR_LEVEL'] = '0'        # Disable GPU Direct RDMA
-os.environ['NCCL_P2P_LEVEL'] = 'SYS'          # Enable system-level P2P
-os.environ['NCCL_SHM_DISABLE'] = '0'          # Ensure shared memory enabled
-os.environ['NCCL_ALGO'] = 'Ring'              # Force ring algorithm
-os.environ['NCCL_TIMEOUT'] = '1800'           # 30 minute timeout
-os.environ['NCCL_DEBUG'] = 'WARN'             # Reduce debug output
+# Load configuration from YAML file
+def load_config(config_path: str = "config.yaml") -> dict:
+    """Load configuration from YAML file"""
+    config_file = Path(config_path)
+    if not config_file.exists():
+        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+    
+    with open(config_file, 'r') as f:
+        config = yaml.safe_load(f)
+    
+    return config
+
+# Load configuration
+cfg = load_config()
+
+# Set NCCL environment variables from config before importing PyTorch
+nccl_config = cfg.get('nccl', {})
+for key, value in nccl_config.items():
+    os.environ[key] = str(value)
 
 import torch
 import torch.nn.functional as F
@@ -29,9 +41,8 @@ from composer.loggers import WandBLogger
 from composer.utils import dist, reproducibility
 from streaming import Stream, StreamingDataset
 from composer.loggers import TensorboardLogger
+from dataloading_ops import build_flux_streaming_dataloader
 
-# Initialize TensorBoard logger with proper configuration
-tb_logger = TensorboardLogger(log_dir="./my_tensorboard_logs")
 
 
 import os
@@ -40,78 +51,32 @@ import time
 # Your FLUX model import
 from model_utils.dit import load_flow_model2
 
+# Import inference utilities
+from inference_utils import create_inference_callback
+
 torch.backends.cudnn.benchmark = True  # 3-5% speedup
 
-
-class FluxStreamingDataset(StreamingDataset):
-    """Dataset class for loading FLUX precomputed data from mds format."""
-
-    def __init__(
-        self,
-        streams: Optional[List[Stream]] = None,
-        shuffle: bool = False,
-        batch_size: int = 8,
-        **kwargs
-    ) -> None:
-        # Remove batch_size parameter to avoid distributed issues
-        super().__init__(
-            streams=streams,
-            shuffle=shuffle,
-            batch_size=batch_size,
-        )
-
-    def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
-        sample = super().__getitem__(index)
-        out = {}
-
-        # Convert numpy arrays to tensors with correct shapes
-        # Expected shapes from dataset preparation:
-        # - img_latents: [256, 64] (256 tokens, 64 features each)
-        # - txt_embeds: [512, 4096] (512 tokens, 4096 features each)
-        # - vec_embeds: [768] (CLIP embedding)
-        
-        if 'img_latents' in sample:
-            # Reshape from flattened to [256, 64]
-            img_data = sample['img_latents'].astype(np.float16)
-            out['img_latents'] = torch.from_numpy(img_data.reshape(256, 64))
-        
-        if 'img_ids' in sample:
-            # Reshape from flattened to [256, 3]
-            img_ids_data = sample['img_ids'].astype(np.float32)
-            out['img_ids'] = torch.from_numpy(img_ids_data.reshape(256, 3))
-            
-        if 'txt_embeds' in sample:
-            # Reshape from flattened to [512, 4096]
-            txt_data = sample['txt_embeds'].astype(np.float16)
-            out['txt_embeds'] = torch.from_numpy(txt_data.reshape(512, 4096))
-            
-        if 'txt_ids' in sample:
-            # Reshape from flattened to [512, 3]
-            txt_ids_data = sample['txt_ids'].astype(np.float32)
-            out['txt_ids'] = torch.from_numpy(txt_ids_data.reshape(512, 3))
-            
-        if 'vec_embeds' in sample:
-            # Keep as [768] - no reshaping needed
-            vec_data = sample['vec_embeds'].astype(np.float16)
-            out['vec_embeds'] = torch.from_numpy(vec_data)
-
-        return out
+# Set memory management environment variables
+import os
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 
 class FluxComposerModel(ComposerModel):
     """Composer wrapper for FLUX flow matching model"""
     
-    def __init__(self, model_name: str = "flux-schnell"):
+    def __init__(self, model_name: str = None):
         super().__init__()
         
         # Load the FLUX model
         print(f"Loading FLUX model: {model_name}")
+        
         self.flux_model = load_flow_model2(model_name)
         self.model_name = model_name
         print("FLUX model loaded successfully")
         
-        # Flow matching parameters
-        self.sigma = 1.0  # Noise scale
+        
+        # Flow matching parameters from config
+        self.sigma = cfg['flow_matching']['sigma']  # Noise scale
         
         # Initialize metrics tracking
         self.train_loss = torch.tensor(0.0)
@@ -120,12 +85,14 @@ class FluxComposerModel(ComposerModel):
     def forward(self, batch: Dict[str, Any]) -> torch.Tensor:
         """Forward pass for training"""
         
+        
         # Extract batch components
         img_latents = batch['img_latents']  # Shape: [B, H*W, C*Ph*Pw]
         img_ids = batch['img_ids']          # Shape: [B, H*W, 3]
         txt_embeds = batch['txt_embeds']    # Shape: [B, seq_len, dim]
         txt_ids = batch['txt_ids']          # Shape: [B, seq_len, 3] 
         vec_embeds = batch['vec_embeds']    # Shape: [B, dim]
+        
         
         batch_size = img_latents.shape[0]
         device = img_latents.device
@@ -143,33 +110,21 @@ class FluxComposerModel(ComposerModel):
         # Target velocity field: v_t = noise - x_1 (from x_t to noise)
         target_velocity = noise - img_latents
         
-        # Guidance scale (typical values 3-7 for FLUX)
-        guidance = torch.full((batch_size,), 4.0, device=device, dtype=img_latents.dtype)
+        # Guidance scale from config
+        guidance = torch.full((batch_size,), cfg['flow_matching']['guidance_scale'], device=device, dtype=img_latents.dtype)
         
-        # Ensure tensors have the correct 3D shape for FLUX model
-        # FLUX expects: img [B, seq_len, dim] and txt [B, seq_len, dim]
+        # Validate expected dimensions from config
+        expected_img_shape = cfg['data_preprocessing']['img_latents_shape']
+        expected_txt_shape = cfg['data_preprocessing']['txt_embeds_shape']
         
-        # Debug: Print tensor shapes before reshaping
-        # print(f"Original x_t shape: {x_t.shape}")
-        # print(f"Original txt_embeds shape: {txt_embeds.shape}")
-        
-        # The tensors should already be in the correct 3D format from dataset preparation
-        # Expected shapes:
-        # - x_t: [B, 256, 64] (256 tokens, 64 features each)
-        # - txt_embeds: [B, 512, 4096] (512 tokens, 4096 features each)
-        
-        # Debug: Print tensor shapes after reshaping
-        # print(f"Final x_t shape: {x_t.shape}")
-        # print(f"Final txt_embeds shape: {txt_embeds.shape}")
-        
-        # Validate expected dimensions
-        if x_t.shape[1] != 256 or x_t.shape[2] != 64:
-            print(f"ERROR: Expected x_t shape [B, 256, 64], got {x_t.shape}")
+        if x_t.shape[1] != expected_img_shape[0] or x_t.shape[2] != expected_img_shape[1]:
+            print(f"ERROR: Expected x_t shape [B, {expected_img_shape[0]}, {expected_img_shape[1]}], got {x_t.shape}")
             raise ValueError(f"Invalid x_t shape: {x_t.shape}")
         
-        if txt_embeds.shape[1] != 512 or txt_embeds.shape[2] != 4096:
-            print(f"ERROR: Expected txt_embeds shape [B, 512, 4096], got {txt_embeds.shape}")
+        if txt_embeds.shape[1] != expected_txt_shape[0] or txt_embeds.shape[2] != expected_txt_shape[1]:
+            print(f"ERROR: Expected txt_embeds shape [B, {expected_txt_shape[0]}, {expected_txt_shape[1]}], got {txt_embeds.shape}")
             raise ValueError(f"Invalid txt_embeds shape: {txt_embeds.shape}")
+        
         
         # Forward through FLUX model
         predicted_velocity = self.flux_model(
@@ -214,79 +169,12 @@ class FluxComposerModel(ComposerModel):
                 self.eval_loss = metric_value.detach()
 
 
-def build_flux_streaming_dataloader(
-    datadir: Union[str, List[str]],
-    batch_size: int,
-    shuffle: bool = True,
-    drop_last: bool = True,
-    **dataloader_kwargs
-) -> DataLoader:
-    """Creates a DataLoader for FLUX streaming dataset - exact copy of working pattern."""
-    
-    if isinstance(datadir, str):
-        datadir = [datadir]
-
-    streams = [Stream(remote=None, local=d) for d in datadir]
-
-    dataset = FluxStreamingDataset(
-        streams=streams,
-        shuffle=shuffle,
-    )
-
-    dataloader = DataLoader(
-        dataset=dataset,
-        batch_size=batch_size,
-        sampler=None,  # Important: let dataset handle everything
-        drop_last=drop_last,
-        **dataloader_kwargs,
-    )
-
-    return dataloader
 
 
 def train():
-    """Train FLUX model - following exact working pattern"""
+    """Train FLUX model using configuration from YAML file"""
     
-    # Configuration
-    cfg = {
-        'seed': 42,
-        'dataset': {
-            'train_batch_size': 8,
-            'eval_batch_size': 8,
-            'datadir': "/data0/teja_works/diffusion_training/nvidia_tools_training/mosicml_code/FlowModelTraining/data_gen/flux_mds_dataset",
-            'num_workers': 16,
-        },
-        'model': {
-            'name': "flux-schnell",
-            'dtype': 'bfloat16'
-        },
-        'optimizer': {
-            'lr': 2.4e-4,
-            'weight_decay': 0.1,
-            'betas': [0.9, 0.999],
-            'eps': 1.0e-8
-        },
-        'scheduler': {
-            'warmup_duration': "2500ba",
-            'max_duration': "50ep",
-            'alpha_f': 0.33
-        },
-        'trainer': {
-            'max_duration': "50ep",
-            'save_interval': "10ep",
-            'eval_interval': "5ep",
-            'save_folder': "./flux_composer_checkpoints",
-            'run_name': "flux_training_run",
-            'autoresume': True,
-        },
-        'algorithms': {
-            'gradient_clipping': {'clip_norm': 1.0}
-        },
-        'misc': {
-            'compile': False
-        }
-    }
-    
+    # Configuration is already loaded from YAML file at module level
     if not cfg:
         raise ValueError('Config not specified.')
     
@@ -294,6 +182,7 @@ def train():
 
     # Create model
     print("Initializing FLUX Composer model...")
+
     model = FluxComposerModel(model_name=cfg['model']['name'])
 
     # Set up optimizer - using micro_diffusion pattern
@@ -309,22 +198,34 @@ def train():
     for p in optimizer.param_groups:
         p['betas'] = list(p['betas'])
 
-    # Set up data loaders - EXACTLY like working code
+    # Set up data loaders with separate paths
+    print("Dataset configuration:")
+    print(f"  - Train data dir: {cfg['dataset']['train_datadir']}")
+    print(f"  - Eval data dir: {cfg['dataset']['eval_datadir']}")
+    print(f"  - Test data dir: {cfg['dataset']['test_datadir']}")
+    print(f"  - Eval dataset: Full dataset (no limitation)")
+    print(f"  - Create test loader: {cfg['dataset'].get('create_test_loader', False)}")
+    print()
+    
     print("Creating training dataloader...")
+    
     train_loader = build_flux_streaming_dataloader(
-        datadir=cfg['dataset']['datadir'],
+        datadir=cfg['dataset']['train_datadir'],
         batch_size=cfg['dataset']['train_batch_size'] // dist.get_world_size(),
         shuffle=True,
         drop_last=True,
         num_workers=cfg['dataset']['num_workers'],
-        persistent_workers=True if cfg['dataset']['num_workers'] > 0 else False,
-        pin_memory=True
+        persistent_workers=cfg['hardware']['persistent_workers'] if cfg['dataset']['num_workers'] > 0 else False,
+        pin_memory=cfg['hardware']['pin_memory']
     )
     print(f"Found {len(train_loader.dataset)*dist.get_world_size()} samples in the training dataset")
+    
+    
     time.sleep(3)
 
+    print("Creating evaluation dataloader...")
     eval_loader = build_flux_streaming_dataloader(
-        datadir=cfg['dataset']['datadir'],
+        datadir=cfg['dataset']['eval_datadir'],
         batch_size=cfg['dataset']['eval_batch_size'] // dist.get_world_size(),
         shuffle=False,
         drop_last=True,
@@ -332,11 +233,48 @@ def train():
         persistent_workers=True if cfg['dataset']['num_workers'] > 0 else False,
         pin_memory=True
     )
+    
+    # Note: Dataset limitation removed to avoid DataLoader issues
+    print(f"Eval dataset size: {len(eval_loader.dataset)} samples")
+    
     print(f"Found {len(eval_loader.dataset)*dist.get_world_size()} samples in the eval dataset")
     time.sleep(3)
 
+    # Optional: Create test dataloader (for future use)
+    if cfg['dataset'].get('create_test_loader', False) and 'test_datadir' in cfg['dataset'] and cfg['dataset']['test_datadir']:
+        print("Creating test dataloader...")
+        test_loader = build_flux_streaming_dataloader(
+            datadir=cfg['dataset']['test_datadir'],
+            batch_size=cfg['dataset']['eval_batch_size'] // dist.get_world_size(),
+            shuffle=False,
+            drop_last=True,
+            num_workers=cfg['dataset']['num_workers'],
+            persistent_workers=True if cfg['dataset']['num_workers'] > 0 else False,
+            pin_memory=True
+        )
+        print(f"Found {len(test_loader.dataset)*dist.get_world_size()} samples in the test dataset")
+        time.sleep(3)
+    else:
+        test_loader = None
+        print("Test dataloader creation disabled or no test_datadir specified")
+
+    # Initialize TensorBoard logger
+    tb_logger = TensorboardLogger(log_dir=cfg['logging']['tensorboard']['log_dir'])
+    
     # Initialize training components
     logger, callbacks, algorithms = [tb_logger], [], []
+    
+    # Add inference callback if enabled
+    if cfg['inference']['enabled']:
+        print("Adding inference callback for monitoring training progress...")
+        print(f"Inference configuration:")
+        print(f"  - Interval: {cfg['inference']['interval']}")
+        print(f"  - Steps: {cfg['inference']['num_steps']}")
+        print(f"  - Guidance: {cfg['inference']['guidance_scale']}")
+        print(f"  - Save dir: {cfg['inference']['save_dir']}")
+        print(f"  - Using validation datastreamer for inference")
+        inference_callback = create_inference_callback(cfg, eval_loader)
+        callbacks.append(inference_callback)
 
     # Configure algorithms
     if 'algorithms' in cfg:
@@ -381,7 +319,13 @@ def train():
     # Ensure models are on correct device
     device = next(model.flux_model.parameters()).device
     print(f"Training on device: {device}")
+    
+    # Print inference information
+    if cfg['inference']['enabled']:
+        print(f"\nInference samples will be saved to: {cfg['inference']['save_dir']}")
+        print("Inference will run every 2 epochs to monitor training progress")
 
+    
     return trainer.fit()
 
 
