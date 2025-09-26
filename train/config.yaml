@@ -38,8 +38,8 @@ scheduler:
 # Trainer configuration
 trainer:
   max_duration: "50ep"                    # Maximum training duration
-  save_interval: "10ep"                   # How often to save checkpoints
-  eval_interval: "5ep"                    # How often to run evaluation
+  save_interval: "1ep"                   # How often to save checkpoints
+  eval_interval: "1ep"                    # How often to run evaluation
   save_folder: "./flux_composer_checkpoints"  # Directory to save checkpoints
   run_name: "flux_training_run"           # Name for this training run
   autoresume: true                        # Whether to auto-resume from checkpoints

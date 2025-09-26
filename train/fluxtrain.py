@@ -314,6 +314,7 @@ def train():
         autoresume=cfg['trainer']['autoresume'],
         device="gpu" if torch.cuda.is_available() else "cpu",
         seed=cfg['seed'],
+        save_overwrite=True
     )
 
     # Ensure models are on correct device
