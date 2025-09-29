@@ -416,14 +416,14 @@ def main():
     parser.add_argument("--prompt", type=str, required=True, help="Text prompt for image generation")
     parser.add_argument("--negative_prompt", type=str, default="", help="Negative prompt")
     parser.add_argument("--checkpoint", type=str, 
-                       default="/data0/teja_works/diffusion_training/nvidia_tools_training/mosicml_code/FlowModelTraining/train/flux_composer_checkpoints/ep4-ba4-rank0.pt",
+                       default="/data0/teja_works/diffusion_training/nvidia_tools_training/mosicml_code/FlowModelTraining/train/output/checkpoints/ep25-ba8925-rank0.pt",
                        help="Path to model checkpoint")
     parser.add_argument("--config", type=str, default="config.yaml", help="Path to config file")
     parser.add_argument("--output", type=str, default="generated_image.png", help="Output image path")
     parser.add_argument("--height", type=int, default=256, help="Image height")
     parser.add_argument("--width", type=int, default=256, help="Image width")
-    parser.add_argument("--steps", type=int, default=20, help="Number of denoising steps")
-    parser.add_argument("--guidance", type=float, default=3.5, help="Guidance scale")
+    parser.add_argument("--steps", type=int, default=100, help="Number of denoising steps")
+    parser.add_argument("--guidance", type=float, default=4, help="Guidance scale")
     parser.add_argument("--seed", type=int, default=None, help="Random seed")
     parser.add_argument("--device", type=str, default="cuda", help="Device to use")
     parser.add_argument("--dtype", type=str, default="bfloat16", choices=["bfloat16", "float16"], help="Model dtype")

@@ -102,7 +102,7 @@ def denoise(
             pred = neg_pred + true_gs * (pred - neg_pred)
         
         # Flow matching update
-        img = img - (t_prev - t_curr) * pred
+        img = img + (t_prev - t_curr) * pred
         i += 1
         
         # Clean up predictions to prevent memory accumulation
