@@ -982,3 +982,5 @@ if __name__ == "__main__":
         # main()
         
         main("config/val_data.yaml")
+        main("config/test_data.yaml")
+        main("config/train_data.yaml")

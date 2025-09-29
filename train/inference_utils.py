@@ -5,10 +5,12 @@ import matplotlib.pyplot as plt
 from einops import rearrange
 import os
 import math
+import gc
 from typing import Callable, List, Dict, Any
 from tqdm import tqdm
 import sys
 from data_cache import load_ae
+from memory_utils import print_gpu_memory_usage, cleanup_gpu_memory
 
 
 def time_shift(mu: float, sigma: float, t: torch.Tensor):
@@ -102,6 +104,16 @@ def denoise(
         # Flow matching update
         img = img - (t_prev - t_curr) * pred
         i += 1
+        
+        # Clean up predictions to prevent memory accumulation
+        del pred
+        if i >= timestep_to_start_cfg and 'neg_pred' in locals():
+            del neg_pred
+    
+    # Final cleanup
+    del guidance_vec, t_vec
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     
     return img
 
@@ -213,6 +225,14 @@ class TrainingInference:
                 ip_scale=1.0,
                 neg_ip_scale=1.0
             )
+            
+            # Clean up intermediate tensors
+            del noise, neg_txt, neg_vec
+            torch.cuda.empty_cache()
+            
+            # Clean up intermediate tensors
+            del noise, neg_txt, neg_vec
+            torch.cuda.empty_cache()
         
         # Add timestamp to make filenames unique
         import time
@@ -291,6 +311,11 @@ class TrainingInference:
         else:
             print("No autoencoder available - only saving raw latents")
         
+        # Clean up remaining tensors
+        del img_latents, img_ids, txt_embeds, txt_ids, vec_embeds
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            
         return generated_latent
     
     def generate_sample_from_validation(self, epoch: int, step: int = 0):
@@ -448,12 +473,23 @@ class TrainingInference:
             else:
                 print("No autoencoder available - only saving raw latents")
             
+            # Clean up remaining tensors
+            del img_latents, img_ids, txt_embeds, txt_ids, vec_embeds, val_batch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                gc.collect()
+                
             return generated_latent
-            
+                
         except Exception as e:
             print(f"Error generating validation sample: {e}")
             import traceback
             traceback.print_exc()
+            
+            # Clean up on error
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                gc.collect()
             return None
     
     def _decode_latent_to_image(self, latents: torch.Tensor):
@@ -522,6 +558,11 @@ class TrainingInference:
         print(f"🔍 DEBUG: Final numpy images - min: {images.min():.6f}, max: {images.max():.6f}")
         print(f"🔍 DEBUG: Final numpy images - mean: {images.mean():.6f}, std: {images.std():.6f}")
         
+        # Clean up GPU tensors immediately after use
+        del latents_reshaped
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        
         # Return first image in batch
         return images[0].transpose(1, 2, 0)  # Convert from CHW to HWC
     
@@ -559,6 +600,11 @@ class TrainingInference:
         
         print(f"🔍 DEBUG RAW: Final numpy images - min: {images.min():.6f}, max: {images.max():.6f}")
         print(f"🔍 DEBUG RAW: Final numpy images - mean: {images.mean():.6f}, std: {images.std():.6f}")
+        
+        # Clean up GPU tensors immediately after use
+        del raw_latents
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         
         # Return first image in batch
         return images[0].transpose(1, 2, 0)  # Convert from CHW to HWC
@@ -647,15 +693,27 @@ def create_inference_callback(config: Dict[str, Any], eval_dataloader=None):
                 
                 # Use validation dataloader for inference instead of training batch
                 try:
+                    # Print memory usage before inference
+                    print_gpu_memory_usage(f"🔍 Before inference (epoch {current_epoch}):")
+                    
                     self.inference.generate_sample_from_validation(
                         epoch=current_epoch,
                         step=int(state.timestamp.batch.value)
                     )
+                    
+                    # Clean up GPU memory after inference
+                    cleanup_gpu_memory(verbose=True)
+                    print_gpu_memory_usage(f"🔍 After inference (epoch {current_epoch}):")
+                    
                     print(f"Completed validation inference for epoch {current_epoch}")
                 except Exception as e:
                     print(f"Error during validation inference: {e}")
                     import traceback
                     traceback.print_exc()
+                    
+                    # Emergency memory cleanup on error
+                    print("🚨 Emergency cleanup after inference error:")
+                    cleanup_gpu_memory(verbose=True)
             else:
                 print(f"🔍 DEBUG: Inference not triggered - current_epoch: {current_epoch}, last_inference_epoch: {self.last_inference_epoch}, interval_epochs: {interval_epochs}")
     

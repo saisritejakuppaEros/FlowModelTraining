@@ -1,5 +1,6 @@
 import os
 import yaml
+import gc
 from pathlib import Path
 
 # Load configuration from YAML file
@@ -53,6 +54,7 @@ from model_utils.dit import load_flow_model2
 
 # Import inference utilities
 from inference_utils import create_inference_callback
+from memory_utils import print_gpu_memory_usage, cleanup_gpu_memory, MemoryManager
 
 torch.backends.cudnn.benchmark = True  # 3-5% speedup
 
@@ -147,6 +149,9 @@ class FluxComposerModel(ComposerModel):
         # Simple MSE loss
         loss = F.mse_loss(predicted_velocity, target_velocity)
         
+        # Clean up intermediate tensors to prevent memory leaks
+        del predicted_velocity, target_velocity, timesteps
+        
         return loss
     
     def metrics(self, train: bool = False) -> Dict[str, Any]:
@@ -164,9 +169,13 @@ class FluxComposerModel(ComposerModel):
         """Update metrics during training/evaluation"""
         if metric_name == 'loss':
             if hasattr(self, 'train_loss'):
-                self.train_loss = metric_value.detach()
+                self.train_loss = metric_value.detach().cpu()
             if hasattr(self, 'eval_loss'):
-                self.eval_loss = metric_value.detach()
+                self.eval_loss = metric_value.detach().cpu()
+                
+        # Clean up GPU memory periodically
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 
 
@@ -273,6 +282,7 @@ def train():
         print(f"  - Guidance: {cfg['inference']['guidance_scale']}")
         print(f"  - Save dir: {cfg['inference']['save_dir']}")
         print(f"  - Using validation datastreamer for inference")
+        print("  - Note: Inference will be memory-intensive, consider increasing interval if OOM occurs")
         inference_callback = create_inference_callback(cfg, eval_loader)
         callbacks.append(inference_callback)
 
@@ -321,13 +331,40 @@ def train():
     device = next(model.flux_model.parameters()).device
     print(f"Training on device: {device}")
     
+    # Print initial memory state
+    print("\n🔍 Initial GPU Memory State:")
+    print_gpu_memory_usage("Before training:")
+    
     # Print inference information
     if cfg['inference']['enabled']:
         print(f"\nInference samples will be saved to: {cfg['inference']['save_dir']}")
-        print("Inference will run every 2 epochs to monitor training progress")
+        print("Inference will run every epoch to monitor training progress")
+        print("⚠️  Note: If you encounter OOM errors, consider:")
+        print("   - Increasing inference interval (e.g., '2ep' or '3ep')")
+        print("   - Disabling inference during training")
+        print("   - Reducing batch size")
 
     
-    return trainer.fit()
+    # Clean up memory before training starts
+    cleanup_gpu_memory(verbose=True)
+    
+    try:
+        result = trainer.fit()
+        print("\n✅ Training completed successfully!")
+        return result
+    except torch.cuda.OutOfMemoryError as e:
+        print(f"\n❌ CUDA Out of Memory Error: {e}")
+        print("🔧 Troubleshooting suggestions:")
+        print("1. Reduce batch size in config.yaml")
+        print("2. Disable or reduce inference frequency")
+        print("3. Set PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True")
+        print("4. Use gradient checkpointing if available")
+        cleanup_gpu_memory(verbose=True)
+        raise
+    except Exception as e:
+        print(f"\n❌ Training error: {e}")
+        cleanup_gpu_memory(verbose=True)
+        raise
 
 
 if __name__ == '__main__':

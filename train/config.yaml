@@ -10,7 +10,7 @@ dataset:
   eval_batch_size: 16   # Reduced from 8 to 2 to help with memory
   num_workers: 24       # Reduced from 16 to 8 to help with memory
   # Separate paths for different data splits
-  train_datadir: "/data0/teja_works/diffusion_training/nvidia_tools_training/mosicml_code/FlowModelTraining/data_gen/dataset_output/mds/val_data"
+  train_datadir: "/data0/teja_works/diffusion_training/nvidia_tools_training/mosicml_code/FlowModelTraining/data_gen/dataset_output/mds/train_data"
   eval_datadir: "/data0/teja_works/diffusion_training/nvidia_tools_training/mosicml_code/FlowModelTraining/data_gen/dataset_output/mds/val_data"
   test_datadir: "/data0/teja_works/diffusion_training/nvidia_tools_training/mosicml_code/FlowModelTraining/data_gen/dataset_output/mds/val_data"
   # Note: Dataset limitation removed to avoid DataLoader issues
@@ -24,25 +24,24 @@ model:
 
 # Optimizer configuration
 optimizer:
-  lr: 2.4e-4           # Learning rate
-  weight_decay: 0.1     # Weight decay for regularization
+  lr: 1e-4             # Reduced learning rate for better convergence
+  weight_decay: 0.01    # Reduced weight decay
   betas: [0.9, 0.999]   # Adam beta parameters
   eps: 1.0e-8          # Adam epsilon parameter
 
-# Learning rate scheduler configuration
 scheduler:
-  warmup_duration: "2500ba"  # Warmup duration in batches
-  max_duration: "50ep"       # Maximum training duration in epochs
-  alpha_f: 0.33              # Final learning rate factor
+  name: CosineAnnealingWithWarmupScheduler
+  warmup_duration: "5ep"     # Warmup for 5 epochs (~0.5% of total)
+  max_duration: "1000ep"     # Match total training duration
+  alpha_f: 0.1               # Final LR = 10% of base LR
 
-# Trainer configuration
 trainer:
-  max_duration: "50ep"                    # Maximum training duration
-  save_interval: "1ep"                   # How often to save checkpoints
-  eval_interval: "1ep"                    # How often to run evaluation
-  save_folder: "./flux_composer_checkpoints"  # Directory to save checkpoints
-  run_name: "flux_training_run"           # Name for this training run
-  autoresume: true                        # Whether to auto-resume from checkpoints
+  max_duration: "1000ep"
+  save_interval: "5ep"
+  eval_interval: "5ep"
+  save_folder: "./output/checkpoints"
+  run_name: "flux_training_run"
+  autoresume: true
 
 # Training algorithms
 algorithms:
@@ -56,7 +55,7 @@ misc:
 # Logging configuration
 logging:
   tensorboard:
-    log_dir: "./my_tensorboard_logs"
+    log_dir: "./output/tensorboard_logs"
     enabled: true
   wandb:
     enabled: false
@@ -99,4 +98,4 @@ inference:
   interval: "1ep"                # Run inference every epoch
   num_steps: 50                  # Number of sampling steps for inference
   guidance_scale: 4.0            # Guidance scale for inference
-  save_dir: "./inference_samples" # Directory to save inference images
+  save_dir: "./output/inference_samples" # Directory to save inference images

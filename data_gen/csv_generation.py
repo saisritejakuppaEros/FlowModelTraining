@@ -184,13 +184,13 @@ if __name__ == "__main__":
     
     # Generate CSV with cleaned captions
     # You can specify sample_size to process only a subset for testing
-    generate_csv_from_json_files(captions_path, output_csv, sample_size=5000)
+    generate_csv_from_json_files(captions_path, output_csv, sample_size=200000)
 
 
-    captions_path = '/data0/teja_works/sd3_dataset/data/extracted_dataset_captions'
-    output_csv = 'dataset_output/csv_files/val.csv'
-    generate_csv_from_json_files(captions_path, output_csv, sample_size=20)
+    # captions_path = '/data0/teja_works/sd3_dataset/data/extracted_dataset_captions'
+    # output_csv = 'dataset_output/csv_files/val.csv'
+    # generate_csv_from_json_files(captions_path, output_csv, sample_size=20)
 
-    captions_path = '/data0/teja_works/sd3_dataset/data/extracted_dataset_captions'
-    output_csv = 'dataset_output/csv_files/test.csv'
-    generate_csv_from_json_files(captions_path, output_csv, sample_size=20)
+    # captions_path = '/data0/teja_works/sd3_dataset/data/extracted_dataset_captions'
+    # output_csv = 'dataset_output/csv_files/test.csv'
+    # generate_csv_from_json_files(captions_path, output_csv, sample_size=20)
