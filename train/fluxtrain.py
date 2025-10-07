@@ -197,10 +197,10 @@ def train():
     # Set up optimizer - using micro_diffusion pattern
     optimizer = torch.optim.AdamW(
         params=model.parameters(), 
-        lr=cfg['optimizer']['lr'],
-        weight_decay=cfg['optimizer']['weight_decay'],
+        lr=float(cfg['optimizer']['lr']),
+        weight_decay=float(cfg['optimizer']['weight_decay']),
         betas=cfg['optimizer']['betas'],
-        eps=cfg['optimizer']['eps']
+        eps=float(cfg['optimizer']['eps'])
     )
 
     # Convert ListConfig betas to native list to avoid ValueError when saving optimizer state

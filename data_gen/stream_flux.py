@@ -856,7 +856,7 @@ def main(yaml_file):
     except FileNotFoundError:
         # Default config
         config = {
-            "data_path": "image_captions_cleaned.csv",
+            "data_path": "FlowModelTraining/data_gen/dataset_output/csv_files/cc12m_train.csv",
             "output_dir": "./flux_mds_dataset",
             "resolution": 256,  # Final resolution after center crop 1024->256
             "ae_name": "flux-schnell",

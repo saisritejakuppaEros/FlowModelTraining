@@ -1,5 +1,5 @@
 # Configuration for Flux Mosaic Model Training
-data_path: "dataset_output/csv_files/val.csv"  # Path to the dataset file
+data_path: "/data0/teja_works/diffusion_training/dataset_preparation/micro_diffusion/FlowModelTraining/data_gen/dataset_output/csv_files/cc12m_train.csv"  # Path to the dataset file
 output_dir: "dataset_output/mds/val_data"  # Directory to save the processed data
 resolution: 256  # Final resolution after center crop (1024 -> 256)
 ae_name: "flux-schnell"  # Name of the autoencoder model

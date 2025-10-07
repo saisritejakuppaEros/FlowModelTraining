@@ -135,9 +135,9 @@ class TrainingInference:
         self.original_w = None
         
         # Create save directory
-        print(f"🔍 DEBUG: Creating inference save directory: {self.save_dir}")
+        # print(f"🔍 DEBUG: Creating inference save directory: {self.save_dir}")
         os.makedirs(self.save_dir, exist_ok=True)
-        print(f"🔍 DEBUG: Inference save directory created successfully")
+        # print(f"🔍 DEBUG: Inference save directory created successfully")
         
         # Load autoencoder for VAE decoding
         self._load_autoencoder()
@@ -171,13 +171,13 @@ class TrainingInference:
         if 'caption_text' in batch and len(batch['caption_text']) > 0:
             caption_text = batch['caption_text'][0] if isinstance(batch['caption_text'], list) else batch['caption_text']
         
-        print(f"🔍 DEBUG: Using caption for inference: '{caption_text}'")
+        # print(f"🔍 DEBUG: Using caption for inference: '{caption_text}'")
         
         # Move to device and ensure correct dtype
         # Use the same dtype as the model parameters
         model_dtype = next(self.model.parameters()).dtype
-        print(f"🔍 DEBUG: Model dtype: {model_dtype}")
-        print(f"🔍 DEBUG: Input img_latents dtype: {img_latents.dtype}")
+        # print(f"🔍 DEBUG: Model dtype: {model_dtype}")
+        # print(f"🔍 DEBUG: Input img_latents dtype: {img_latents.dtype}")
         
         img_latents = img_latents.to(device=self.device, dtype=model_dtype)
         img_ids = img_ids.to(device=self.device, dtype=model_dtype)
@@ -185,7 +185,7 @@ class TrainingInference:
         txt_ids = txt_ids.to(device=self.device, dtype=model_dtype)
         vec_embeds = vec_embeds.to(device=self.device, dtype=model_dtype)
         
-        print(f"🔍 DEBUG: After conversion - img_latents dtype: {img_latents.dtype}")
+        # print(f"🔍 DEBUG: After conversion - img_latents dtype: {img_latents.dtype}")
         
         # Generate timesteps
         image_seq_len = img_latents.shape[1]
@@ -239,41 +239,41 @@ class TrainingInference:
         timestamp = int(time.time() * 1000) % 100000  # Last 5 digits of timestamp
         
         # Save raw latents
-        latent_save_path = os.path.join(
-            self.save_dir, 
-            f"epoch_{epoch:03d}_step_{step:06d}_{timestamp}_generated_latent.npy"
-        )
-        np.save(latent_save_path, generated_latent.cpu().numpy())
+        # latent_save_path = os.path.join(
+        #     self.save_dir, 
+        #     f"epoch_{epoch:03d}_step_{step:06d}_{timestamp}_generated_latent.npy"
+        # )
+        # np.save(latent_save_path, generated_latent.cpu().numpy())
         
-        original_latent_path = os.path.join(
-            self.save_dir, 
-            f"epoch_{epoch:03d}_step_{step:06d}_{timestamp}_original_latent.npy"
-        )
-        np.save(original_latent_path, img_latents.cpu().numpy())
+        # original_latent_path = os.path.join(
+        #     self.save_dir, 
+        #     f"epoch_{epoch:03d}_step_{step:06d}_{timestamp}_original_latent.npy"
+        # )
+        # np.save(original_latent_path, img_latents.cpu().numpy())
         
-        print(f"Generated latent saved to: {latent_save_path}")
-        print(f"Original latent saved to: {original_latent_path}")
+        # print(f"Generated latent saved to: {latent_save_path}")
+        # print(f"Original latent saved to: {original_latent_path}")
         
         # Try to decode with VAE if available
         if self.autoencoder is not None:
             try:
-                print(f"🔍 DEBUG: About to decode - generated_latent shape: {generated_latent.shape}")
-                print(f"🔍 DEBUG: Generated latent stats - min: {generated_latent.min().item():.6f}, max: {generated_latent.max().item():.6f}")
-                print(f"🔍 DEBUG: Generated latent stats - mean: {generated_latent.mean().item():.6f}, std: {generated_latent.std().item():.6f}")
+                # print(f"🔍 DEBUG: About to decode - generated_latent shape: {generated_latent.shape}")
+                # print(f"🔍 DEBUG: Generated latent stats - min: {generated_latent.min().item():.6f}, max: {generated_latent.max().item():.6f}")
+                # print(f"🔍 DEBUG: Generated latent stats - mean: {generated_latent.mean().item():.6f}, std: {generated_latent.std().item():.6f}")
                 
-                print(f"🔍 DEBUG: About to decode - original img_latents shape: {img_latents.shape}")
-                print(f"🔍 DEBUG: Original latent stats - min: {img_latents.min().item():.6f}, max: {img_latents.max().item():.6f}")
-                print(f"🔍 DEBUG: Original latent stats - mean: {img_latents.mean().item():.6f}, std: {img_latents.std().item():.6f}")
+                # print(f"🔍 DEBUG: About to decode - original img_latents shape: {img_latents.shape}")
+                # print(f"🔍 DEBUG: Original latent stats - min: {img_latents.min().item():.6f}, max: {img_latents.max().item():.6f}")
+                # print(f"🔍 DEBUG: Original latent stats - mean: {img_latents.mean().item():.6f}, std: {img_latents.std().item():.6f}")
                 
                 # Check if we have raw_img_latents available (better for decoding)
                 if 'raw_img_latents' in batch:
-                    print("🔍 DEBUG: Using raw_img_latents for original image decoding")
+                    # print("🔍 DEBUG: Using raw_img_latents for original image decoding")
                     raw_img_latents = batch['raw_img_latents'][:1].to(device=self.device, dtype=model_dtype)
-                    print(f"🔍 DEBUG: Raw img latents shape: {raw_img_latents.shape}")
-                    print(f"🔍 DEBUG: Raw img latents stats - min: {raw_img_latents.min().item():.6f}, max: {raw_img_latents.max().item():.6f}")
+                    # print(f"🔍 DEBUG: Raw img latents shape: {raw_img_latents.shape}")
+                    # print(f"🔍 DEBUG: Raw img latents stats - min: {raw_img_latents.min().item():.6f}, max: {raw_img_latents.max().item():.6f}")
                     original_image = self._decode_raw_latent_to_image(raw_img_latents)
                 else:
-                    print("🔍 DEBUG: Using FLUX-format img_latents for original image decoding")
+                    # print("🔍 DEBUG: Using FLUX-format img_latents for original image decoding")
                     original_image = self._decode_latent_to_image(img_latents)
                 
                 # Decode generated latent to image
@@ -343,12 +343,12 @@ class TrainingInference:
             if 'caption_text' in val_batch and len(val_batch['caption_text']) > 0:
                 caption_text = val_batch['caption_text'][0] if isinstance(val_batch['caption_text'], list) else val_batch['caption_text']
             
-            print(f"🔍 DEBUG: Using validation sample for inference: '{caption_text}'")
+            # print(f"🔍 DEBUG: Using validation sample for inference: '{caption_text}'")
             
             # Move to device and ensure correct dtype
             model_dtype = next(self.model.parameters()).dtype
-            print(f"🔍 DEBUG: Model dtype: {model_dtype}")
-            print(f"🔍 DEBUG: Input img_latents dtype: {img_latents.dtype}")
+            # print(f"🔍 DEBUG: Model dtype: {model_dtype}")
+            # print(f"🔍 DEBUG: Input img_latents dtype: {img_latents.dtype}")
             
             img_latents = img_latents.to(device=self.device, dtype=model_dtype)
             img_ids = img_ids.to(device=self.device, dtype=model_dtype)
@@ -356,7 +356,7 @@ class TrainingInference:
             txt_ids = txt_ids.to(device=self.device, dtype=model_dtype)
             vec_embeds = vec_embeds.to(device=self.device, dtype=model_dtype)
             
-            print(f"🔍 DEBUG: After conversion - img_latents dtype: {img_latents.dtype}")
+            # print(f"🔍 DEBUG: After conversion - img_latents dtype: {img_latents.dtype}")
             
             # Generate timesteps
             image_seq_len = img_latents.shape[1]
@@ -401,41 +401,41 @@ class TrainingInference:
             timestamp = int(time.time() * 1000) % 100000  # Last 5 digits of timestamp
             
             # Save raw latents
-            latent_save_path = os.path.join(
-                self.save_dir, 
-                f"epoch_{epoch:03d}_step_{step:06d}_{timestamp}_val_generated_latent.npy"
-            )
-            np.save(latent_save_path, generated_latent.cpu().numpy())
+            # latent_save_path = os.path.join(
+            #     self.save_dir, 
+            #     f"epoch_{epoch:03d}_step_{step:06d}_{timestamp}_val_generated_latent.npy"
+            # )
+            # np.save(latent_save_path, generated_latent.cpu().numpy())
             
-            original_latent_path = os.path.join(
-                self.save_dir, 
-                f"epoch_{epoch:03d}_step_{step:06d}_{timestamp}_val_original_latent.npy"
-            )
-            np.save(original_latent_path, img_latents.cpu().numpy())
+            # original_latent_path = os.path.join(
+            #     self.save_dir, 
+            #     f"epoch_{epoch:03d}_step_{step:06d}_{timestamp}_val_original_latent.npy"
+            # )
+            # np.save(original_latent_path, img_latents.cpu().numpy())
             
-            print(f"Validation generated latent saved to: {latent_save_path}")
-            print(f"Validation original latent saved to: {original_latent_path}")
+            # print(f"Validation generated latent saved to: {latent_save_path}")
+            # print(f"Validation original latent saved to: {original_latent_path}")
             
             # Try to decode with VAE if available
             if self.autoencoder is not None:
                 try:
-                    print(f"🔍 DEBUG VAL: About to decode - generated_latent shape: {generated_latent.shape}")
-                    print(f"🔍 DEBUG VAL: Generated latent stats - min: {generated_latent.min().item():.6f}, max: {generated_latent.max().item():.6f}")
-                    print(f"🔍 DEBUG VAL: Generated latent stats - mean: {generated_latent.mean().item():.6f}, std: {generated_latent.std().item():.6f}")
+                    # print(f"🔍 DEBUG VAL: About to decode - generated_latent shape: {generated_latent.shape}")
+                    # print(f"🔍 DEBUG VAL: Generated latent stats - min: {generated_latent.min().item():.6f}, max: {generated_latent.max().item():.6f}")
+                    # print(f"🔍 DEBUG VAL: Generated latent stats - mean: {generated_latent.mean().item():.6f}, std: {generated_latent.std().item():.6f}")
                     
-                    print(f"🔍 DEBUG VAL: About to decode - original img_latents shape: {img_latents.shape}")
-                    print(f"🔍 DEBUG VAL: Original latent stats - min: {img_latents.min().item():.6f}, max: {img_latents.max().item():.6f}")
-                    print(f"🔍 DEBUG VAL: Original latent stats - mean: {img_latents.mean().item():.6f}, std: {img_latents.std().item():.6f}")
+                    # print(f"🔍 DEBUG VAL: About to decode - original img_latents shape: {img_latents.shape}")
+                    # print(f"🔍 DEBUG VAL: Original latent stats - min: {img_latents.min().item():.6f}, max: {img_latents.max().item():.6f}")
+                    # print(f"🔍 DEBUG VAL: Original latent stats - mean: {img_latents.mean().item():.6f}, std: {img_latents.std().item():.6f}")
                     
                     # Check if we have raw_img_latents available (better for decoding)
                     if 'raw_img_latents' in val_batch:
-                        print("🔍 DEBUG VAL: Using raw_img_latents for original image decoding")
+                        # print("🔍 DEBUG VAL: Using raw_img_latents for original image decoding")
                         raw_img_latents = val_batch['raw_img_latents'][:1].to(device=self.device, dtype=model_dtype)
-                        print(f"🔍 DEBUG VAL: Raw img latents shape: {raw_img_latents.shape}")
-                        print(f"🔍 DEBUG VAL: Raw img latents stats - min: {raw_img_latents.min().item():.6f}, max: {raw_img_latents.max().item():.6f}")
+                        # print(f"🔍 DEBUG VAL: Raw img latents shape: {raw_img_latents.shape}")
+                        # print(f"🔍 DEBUG VAL: Raw img latents stats - min: {raw_img_latents.min().item():.6f}, max: {raw_img_latents.max().item():.6f}")
                         original_image = self._decode_raw_latent_to_image(raw_img_latents)
                     else:
-                        print("🔍 DEBUG VAL: Using FLUX-format img_latents for original image decoding")
+                        # print("🔍 DEBUG VAL: Using FLUX-format img_latents for original image decoding")
                         original_image = self._decode_latent_to_image(img_latents)
                     
                     # Decode generated latent to image
@@ -507,18 +507,18 @@ class TrainingInference:
             self.original_h = h
             self.original_w = w
         
-        print(f"🔍 DEBUG: Rearranging latents from FLUX format:")
-        print(f"🔍 DEBUG: Input latents shape: {latents.shape}")
-        print(f"🔍 DEBUG: Using h={self.original_h}, w={self.original_w}, ph=2, pw=2")
-        print(f"🔍 DEBUG: Expected seq_len = h*w = {self.original_h * self.original_w}, actual seq_len = {latents.shape[1]}")
-        print(f"🔍 DEBUG: Expected features = c*ph*pw = 16*2*2 = 64, actual features = {latents.shape[2]}")
+        # print(f"🔍 DEBUG: Rearranging latents from FLUX format:")
+        # print(f"🔍 DEBUG: Input latents shape: {latents.shape}")
+        # print(f"🔍 DEBUG: Using h={self.original_h}, w={self.original_w}, ph=2, pw=2")
+        # print(f"🔍 DEBUG: Expected seq_len = h*w = {self.original_h * self.original_w}, actual seq_len = {latents.shape[1]}")
+        # print(f"🔍 DEBUG: Expected features = c*ph*pw = 16*2*2 = 64, actual features = {latents.shape[2]}")
         
         # Rearrange latents back to image format
         latents_reshaped = rearrange(latents, "b (h w) (c ph pw) -> b c (h ph) (w pw)", 
                                    ph=2, pw=2, h=self.original_h, w=self.original_w)
         
-        print(f"🔍 DEBUG: Reshaped latents shape: {latents_reshaped.shape}")
-        print(f"🔍 DEBUG: Expected final shape: [1, 16, {self.original_h * 2}, {self.original_w * 2}]")
+        # print(f"🔍 DEBUG: Reshaped latents shape: {latents_reshaped.shape}")
+        # print(f"🔍 DEBUG: Expected final shape: [1, 16, {self.original_h * 2}, {self.original_w * 2}]")
         
         # Convert latents to float32 to match autoencoder dtype
         latents_reshaped = latents_reshaped.float()
@@ -531,32 +531,34 @@ class TrainingInference:
         # Check if we need to apply any additional scaling/normalization
         # Compare with what the autoencoder expects
         if hasattr(self.autoencoder, 'ae_params'):
-            print(f"🔍 DEBUG: AutoEncoder scale_factor: {self.autoencoder.ae_params.scale_factor}")
-            print(f"🔍 DEBUG: AutoEncoder shift_factor: {self.autoencoder.ae_params.shift_factor}")
+            # print(f"🔍 DEBUG: AutoEncoder scale_factor: {self.autoencoder.ae_params.scale_factor}")
+            # print(f"🔍 DEBUG: AutoEncoder shift_factor: {self.autoencoder.ae_params.shift_factor}")
+            pass
         else:
-            print("🔍 DEBUG: No ae_params found in autoencoder")
+            # print("🔍 DEBUG: No ae_params found in autoencoder")
+            pass
         
         # Debug: Print latent statistics before decoding
-        print(f"🔍 DEBUG: Latents before decode - shape: {latents_reshaped.shape}")
-        print(f"🔍 DEBUG: Latents before decode - min: {latents_reshaped.min().item():.6f}, max: {latents_reshaped.max().item():.6f}")
-        print(f"🔍 DEBUG: Latents before decode - mean: {latents_reshaped.mean().item():.6f}, std: {latents_reshaped.std().item():.6f}")
+        # print(f"🔍 DEBUG: Latents before decode - shape: {latents_reshaped.shape}")
+        # print(f"🔍 DEBUG: Latents before decode - min: {latents_reshaped.min().item():.6f}, max: {latents_reshaped.max().item():.6f}")
+        # print(f"🔍 DEBUG: Latents before decode - mean: {latents_reshaped.mean().item():.6f}, std: {latents_reshaped.std().item():.6f}")
         
         # Decode to image
         with torch.no_grad():
             images = self.autoencoder.decode(latents_reshaped)
         
         # Debug: Print decoded image statistics
-        print(f"🔍 DEBUG: Decoded images - shape: {images.shape}")
-        print(f"🔍 DEBUG: Decoded images - min: {images.min().item():.6f}, max: {images.max().item():.6f}")
-        print(f"🔍 DEBUG: Decoded images - mean: {images.mean().item():.6f}, std: {images.std().item():.6f}")
+        # print(f"🔍 DEBUG: Decoded images - shape: {images.shape}")
+        # print(f"🔍 DEBUG: Decoded images - min: {images.min().item():.6f}, max: {images.max().item():.6f}")
+        # print(f"🔍 DEBUG: Decoded images - mean: {images.mean().item():.6f}, std: {images.std().item():.6f}")
         
         # Convert to numpy and normalize to [0, 1]
         images = images.cpu().float().numpy()
         # FLUX VAE outputs in [0, 1] range directly, no normalization needed
         images = np.clip(images, 0, 1)
         
-        print(f"🔍 DEBUG: Final numpy images - min: {images.min():.6f}, max: {images.max():.6f}")
-        print(f"🔍 DEBUG: Final numpy images - mean: {images.mean():.6f}, std: {images.std():.6f}")
+        # print(f"🔍 DEBUG: Final numpy images - min: {images.min():.6f}, max: {images.max():.6f}")
+        # print(f"🔍 DEBUG: Final numpy images - mean: {images.mean():.6f}, std: {images.std():.6f}")
         
         # Clean up GPU tensors immediately after use
         del latents_reshaped
@@ -571,35 +573,36 @@ class TrainingInference:
         if self.autoencoder is None:
             raise ValueError("Autoencoder not loaded")
         
-        print(f"🔍 DEBUG RAW: Decoding raw latents directly (no rearrangement needed)")
-        print(f"🔍 DEBUG RAW: Raw latents shape: {raw_latents.shape}")
-        print(f"🔍 DEBUG RAW: Raw latents stats - min: {raw_latents.min().item():.6f}, max: {raw_latents.max().item():.6f}")
-        print(f"🔍 DEBUG RAW: Raw latents stats - mean: {raw_latents.mean().item():.6f}, std: {raw_latents.std().item():.6f}")
+        # print(f"🔍 DEBUG RAW: Decoding raw latents directly (no rearrangement needed)")
+        # print(f"🔍 DEBUG RAW: Raw latents shape: {raw_latents.shape}")
+        # print(f"🔍 DEBUG RAW: Raw latents stats - min: {raw_latents.min().item():.6f}, max: {raw_latents.max().item():.6f}")
+        # print(f"🔍 DEBUG RAW: Raw latents stats - mean: {raw_latents.mean().item():.6f}, std: {raw_latents.std().item():.6f}")
         
         # Convert latents to float32 to match autoencoder dtype
         raw_latents = raw_latents.float()
         
         # Check autoencoder parameters
         if hasattr(self.autoencoder, 'ae_params'):
-            print(f"🔍 DEBUG RAW: AutoEncoder scale_factor: {self.autoencoder.ae_params.scale_factor}")
-            print(f"🔍 DEBUG RAW: AutoEncoder shift_factor: {self.autoencoder.ae_params.shift_factor}")
+            # print(f"🔍 DEBUG RAW: AutoEncoder scale_factor: {self.autoencoder.ae_params.scale_factor}")
+            # print(f"🔍 DEBUG RAW: AutoEncoder shift_factor: {self.autoencoder.ae_params.shift_factor}")
+            pass
         
         # Decode to image directly (raw latents are already in correct format)
         with torch.no_grad():
             images = self.autoencoder.decode(raw_latents)
         
         # Debug: Print decoded image statistics
-        print(f"🔍 DEBUG RAW: Decoded images - shape: {images.shape}")
-        print(f"🔍 DEBUG RAW: Decoded images - min: {images.min().item():.6f}, max: {images.max().item():.6f}")
-        print(f"🔍 DEBUG RAW: Decoded images - mean: {images.mean().item():.6f}, std: {images.std().item():.6f}")
+        # print(f"🔍 DEBUG RAW: Decoded images - shape: {images.shape}")
+        # print(f"🔍 DEBUG RAW: Decoded images - min: {images.min().item():.6f}, max: {images.max().item():.6f}")
+        # print(f"🔍 DEBUG RAW: Decoded images - mean: {images.mean().item():.6f}, std: {images.std().item():.6f}")
         
         # Convert to numpy and normalize to [0, 1]
         images = images.cpu().float().numpy()
         # FLUX VAE outputs in [0, 1] range directly, no normalization needed
         images = np.clip(images, 0, 1)
         
-        print(f"🔍 DEBUG RAW: Final numpy images - min: {images.min():.6f}, max: {images.max():.6f}")
-        print(f"🔍 DEBUG RAW: Final numpy images - mean: {images.mean():.6f}, std: {images.std():.6f}")
+        # print(f"🔍 DEBUG RAW: Final numpy images - min: {images.min():.6f}, max: {images.max():.6f}")
+        # print(f"🔍 DEBUG RAW: Final numpy images - mean: {images.mean():.6f}, std: {images.std():.6f}")
         
         # Clean up GPU tensors immediately after use
         del raw_latents
@@ -632,31 +635,31 @@ def create_inference_callback(config: Dict[str, Any], eval_dataloader=None):
             self.eval_dataloader = eval_dataloader
             self.inference = None
             self.last_inference_epoch = -1
-            print("🔍 DEBUG: InferenceCallback initialized with validation dataloader")
+            # print("🔍 DEBUG: InferenceCallback initialized with validation dataloader")
             
         def fit_start(self, state: State, logger: Logger) -> None:
             """Called at the start of training"""
-            print("🔍 DEBUG: fit_start called - training started")
+            # print("🔍 DEBUG: fit_start called - training started")
             
         def epoch_start(self, state: State, logger: Logger) -> None:
             """Called at the start of each epoch"""
-            print(f"🔍 DEBUG: epoch_start called - epoch: {state.timestamp.epoch.value}")
+            # print(f"🔍 DEBUG: epoch_start called - epoch: {state.timestamp.epoch.value}")
             
         def batch_start(self, state: State, logger: Logger) -> None:
             """Called at the start of each batch"""
             if state.timestamp.batch.value % 100 == 0:  # Print every 100 batches
-                print(f"🔍 DEBUG: batch_start - epoch: {state.timestamp.epoch.value}, batch: {state.timestamp.batch.value}")
+                pass
             
         def epoch_end(self, state: State, logger: Logger) -> None:
             """Run inference at the end of each epoch if enabled"""
-            print(f"🔍 DEBUG: epoch_end called - epoch: {state.timestamp.epoch.value}")
+            # print(f"🔍 DEBUG: epoch_end called - epoch: {state.timestamp.epoch.value}")
             
             if not self.config['inference']['enabled']:
-                print("🔍 DEBUG: Inference disabled in config")
+                # print("🔍 DEBUG: Inference disabled in config")
                 return
                 
             current_epoch = int(state.timestamp.epoch.value)
-            print(f"🔍 DEBUG: Current epoch: {current_epoch}, Last inference epoch: {self.last_inference_epoch}")
+            # print(f"🔍 DEBUG: Current epoch: {current_epoch}, Last inference epoch: {self.last_inference_epoch}")
             
             # Check if we should run inference based on config interval
             # Parse interval from config (e.g., "1ep", "2ep")
@@ -666,15 +669,15 @@ def create_inference_callback(config: Dict[str, Any], eval_dataloader=None):
                 if interval_str.endswith('ep'):
                     interval_epochs = int(interval_str[:-2])
             
-            print(f"🔍 DEBUG: Checking inference condition:")
-            print(f"🔍 DEBUG: current_epoch > self.last_inference_epoch: {current_epoch > self.last_inference_epoch}")
-            print(f"🔍 DEBUG: current_epoch % interval_epochs == 0: {current_epoch % interval_epochs == 0}")
-            print(f"🔍 DEBUG: current_epoch: {current_epoch}, interval_epochs: {interval_epochs}")
+            # print(f"🔍 DEBUG: Checking inference condition:")
+            # print(f"🔍 DEBUG: current_epoch > self.last_inference_epoch: {current_epoch > self.last_inference_epoch}")
+            # print(f"🔍 DEBUG: current_epoch % interval_epochs == 0: {current_epoch % interval_epochs == 0}")
+            # print(f"🔍 DEBUG: current_epoch: {current_epoch}, interval_epochs: {interval_epochs}")
             
             if current_epoch > self.last_inference_epoch and current_epoch % interval_epochs == 0:
-                print(f"🚀 DEBUG: Starting inference for epoch {current_epoch}")
-                print(f"🔍 DEBUG: Interval epochs: {interval_epochs}")
-                print(f"🔍 DEBUG: Current epoch: {current_epoch}, Last inference epoch: {self.last_inference_epoch}")
+                # print(f"🚀 DEBUG: Starting inference for epoch {current_epoch}")
+                # print(f"🔍 DEBUG: Interval epochs: {interval_epochs}")
+                # print(f"🔍 DEBUG: Current epoch: {current_epoch}, Last inference epoch: {self.last_inference_epoch}")
                 
                 # Update last inference epoch immediately to prevent multiple calls
                 self.last_inference_epoch = current_epoch
@@ -694,7 +697,7 @@ def create_inference_callback(config: Dict[str, Any], eval_dataloader=None):
                 # Use validation dataloader for inference instead of training batch
                 try:
                     # Print memory usage before inference
-                    print_gpu_memory_usage(f"🔍 Before inference (epoch {current_epoch}):")
+                    # print_gpu_memory_usage(f"🔍 Before inference (epoch {current_epoch}):")
                     
                     self.inference.generate_sample_from_validation(
                         epoch=current_epoch,
@@ -703,7 +706,7 @@ def create_inference_callback(config: Dict[str, Any], eval_dataloader=None):
                     
                     # Clean up GPU memory after inference
                     cleanup_gpu_memory(verbose=True)
-                    print_gpu_memory_usage(f"🔍 After inference (epoch {current_epoch}):")
+                    # print_gpu_memory_usage(f"🔍 After inference (epoch {current_epoch}):")
                     
                     print(f"Completed validation inference for epoch {current_epoch}")
                 except Exception as e:
@@ -715,7 +718,8 @@ def create_inference_callback(config: Dict[str, Any], eval_dataloader=None):
                     print("🚨 Emergency cleanup after inference error:")
                     cleanup_gpu_memory(verbose=True)
             else:
-                print(f"🔍 DEBUG: Inference not triggered - current_epoch: {current_epoch}, last_inference_epoch: {self.last_inference_epoch}, interval_epochs: {interval_epochs}")
+                # print(f"🔍 DEBUG: Inference not triggered - current_epoch: {current_epoch}, last_inference_epoch: {self.last_inference_epoch}, interval_epochs: {interval_epochs}")
+                pass
     
     return InferenceCallback(config, eval_dataloader)
 

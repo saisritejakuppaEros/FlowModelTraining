@@ -10,9 +10,9 @@ dataset:
   eval_batch_size: 16   # Reduced from 8 to 2 to help with memory
   num_workers: 24       # Reduced from 16 to 8 to help with memory
   # Separate paths for different data splits
-  train_datadir: "/data0/teja_works/diffusion_training/nvidia_tools_training/mosicml_code/FlowModelTraining/data_gen/dataset_output/mds/train_data"
-  eval_datadir: "/data0/teja_works/diffusion_training/nvidia_tools_training/mosicml_code/FlowModelTraining/data_gen/dataset_output/mds/val_data"
-  test_datadir: "/data0/teja_works/diffusion_training/nvidia_tools_training/mosicml_code/FlowModelTraining/data_gen/dataset_output/mds/val_data"
+  train_datadir: "/data0/teja_works/diffusion_training/dataset_preparation/micro_diffusion/FlowModelTraining/data_gen/dataset_output/mds/train_data"
+  eval_datadir: "/data0/teja_works/diffusion_training/dataset_preparation/micro_diffusion/FlowModelTraining/data_gen/dataset_output/mds/val_data"
+  test_datadir: "/data0/teja_works/diffusion_training/dataset_preparation/micro_diffusion/FlowModelTraining/data_gen/dataset_output/mds/val_data"
   # Note: Dataset limitation removed to avoid DataLoader issues
   # Enable/disable test dataloader creation
   create_test_loader: false
@@ -98,4 +98,4 @@ inference:
   interval: "1ep"                # Run inference every epoch
   num_steps: 50                  # Number of sampling steps for inference
   guidance_scale: 4.0            # Guidance scale for inference
-  save_dir: "./output/inference_samples" # Directory to save inference images
+  save_dir: "./output/inference_samples" # Directory to save inference images 
