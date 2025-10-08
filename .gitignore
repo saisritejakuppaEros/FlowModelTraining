@@ -10,3 +10,5 @@ data_gen/vae_test_results
 sa_2848197.jpg
 train/inference_samples
 train/output
+data_gen/cc12m_dataset/flux_latents_mds
+data_gen/cc12m_dataset/mds

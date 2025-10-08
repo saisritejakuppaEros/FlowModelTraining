@@ -13,6 +13,7 @@ from data_cache import load_ae
 from memory_utils import print_gpu_memory_usage, cleanup_gpu_memory
 
 
+
 def time_shift(mu: float, sigma: float, t: torch.Tensor):
     """Time shifting function for timestep scheduling"""
     return math.exp(mu) / (math.exp(mu) + (1 / t - 1) ** sigma)
@@ -320,35 +321,50 @@ class TrainingInference:
     
     def generate_sample_from_validation(self, epoch: int, step: int = 0):
         """
-        Generate a sample from the validation datastreamer for monitoring progress.
-        Uses the first sample from the validation dataset.
+        Generate samples from the validation datastreamer for monitoring progress.
+        Uses configurable number of samples from the validation dataset consistently.
         """
         if self.eval_dataloader is None:
             print("Warning: No validation dataloader provided, skipping validation inference")
             return None
+        
+        # Check if we should save images for this epoch
+        max_epochs_to_save = self.config['inference'].get('max_epochs_to_save', 0)
+        if max_epochs_to_save > 0 and epoch > max_epochs_to_save:
+            print(f"Skipping validation inference for epoch {epoch} (max_epochs_to_save={max_epochs_to_save})")
+            return None
+        
+        # Check if we should run inference this epoch based on interval
+        inference_interval = self.config['inference'].get('inference_interval_epochs', 1)
+        if epoch % inference_interval != 0:
+            print(f"Skipping validation inference for epoch {epoch} (inference_interval_epochs={inference_interval})")
+            return None
             
         try:
-            # Get a sample from validation dataloader
+            # Get a batch from validation dataloader
             val_batch = next(iter(self.eval_dataloader))
             
-            # Extract first sample from batch
-            img_latents = val_batch['img_latents'][:1]  # [1, seq_len, features]
-            img_ids = val_batch['img_ids'][:1]          # [1, seq_len, 3]
-            txt_embeds = val_batch['txt_embeds'][:1]     # [1, seq_len, features]
-            txt_ids = val_batch['txt_ids'][:1]           # [1, seq_len, 3]
-            vec_embeds = val_batch['vec_embeds'][:1]     # [1, features]
+            # Get number of samples from config
+            num_samples_config = self.config['inference'].get('num_validation_samples', 4)
+            num_samples = min(num_samples_config, val_batch['img_latents'].shape[0])
+            img_latents = val_batch['img_latents'][:num_samples]  # [4, seq_len, features]
+            img_ids = val_batch['img_ids'][:num_samples]          # [4, seq_len, 3]
+            txt_embeds = val_batch['txt_embeds'][:num_samples]     # [4, seq_len, features]
+            txt_ids = val_batch['txt_ids'][:num_samples]           # [4, seq_len, 3]
+            vec_embeds = val_batch['vec_embeds'][:num_samples]     # [4, features]
             
-            # Get the caption text if available
-            caption_text = "Validation sample"
+            # Get the caption texts if available
+            caption_texts = [f"Validation sample {i+1}" for i in range(num_samples)]
             if 'caption_text' in val_batch and len(val_batch['caption_text']) > 0:
-                caption_text = val_batch['caption_text'][0] if isinstance(val_batch['caption_text'], list) else val_batch['caption_text']
+                if isinstance(val_batch['caption_text'], list):
+                    caption_texts = val_batch['caption_text'][:num_samples]
+                else:
+                    caption_texts = [val_batch['caption_text']] * num_samples
             
-            # print(f"🔍 DEBUG: Using validation sample for inference: '{caption_text}'")
+            print(f"🔍 DEBUG: Using {num_samples} validation samples for inference (config: {num_samples_config})")
             
             # Move to device and ensure correct dtype
             model_dtype = next(self.model.parameters()).dtype
-            # print(f"🔍 DEBUG: Model dtype: {model_dtype}")
-            # print(f"🔍 DEBUG: Input img_latents dtype: {img_latents.dtype}")
             
             img_latents = img_latents.to(device=self.device, dtype=model_dtype)
             img_ids = img_ids.to(device=self.device, dtype=model_dtype)
@@ -374,9 +390,12 @@ class TrainingInference:
 
             noise = torch.randn_like(img_latents, dtype=model_dtype)
             
-            # Generate sample
+            # Initialize generated_latents to None to avoid UnboundLocalError
+            generated_latents = None
+            
+            # Generate samples for all 4 samples
             with torch.no_grad():
-                generated_latent = denoise(
+                generated_latents = denoise(
                     model=self.model,
                     img=noise,
                     img_ids=img_ids,
@@ -395,6 +414,11 @@ class TrainingInference:
                     ip_scale=1.0,
                     neg_ip_scale=1.0
                 )
+            
+            # Check if generation was successful
+            if generated_latents is None:
+                print("Warning: Generation failed, returning None")
+                return None
             
             # Add timestamp to make filenames unique
             import time
@@ -419,67 +443,67 @@ class TrainingInference:
             # Try to decode with VAE if available
             if self.autoencoder is not None:
                 try:
-                    # print(f"🔍 DEBUG VAL: About to decode - generated_latent shape: {generated_latent.shape}")
-                    # print(f"🔍 DEBUG VAL: Generated latent stats - min: {generated_latent.min().item():.6f}, max: {generated_latent.max().item():.6f}")
-                    # print(f"🔍 DEBUG VAL: Generated latent stats - mean: {generated_latent.mean().item():.6f}, std: {generated_latent.std().item():.6f}")
-                    
-                    # print(f"🔍 DEBUG VAL: About to decode - original img_latents shape: {img_latents.shape}")
-                    # print(f"🔍 DEBUG VAL: Original latent stats - min: {img_latents.min().item():.6f}, max: {img_latents.max().item():.6f}")
-                    # print(f"🔍 DEBUG VAL: Original latent stats - mean: {img_latents.mean().item():.6f}, std: {img_latents.std().item():.6f}")
-                    
-                    # Check if we have raw_img_latents available (better for decoding)
-                    if 'raw_img_latents' in val_batch:
-                        # print("🔍 DEBUG VAL: Using raw_img_latents for original image decoding")
-                        raw_img_latents = val_batch['raw_img_latents'][:1].to(device=self.device, dtype=model_dtype)
-                        # print(f"🔍 DEBUG VAL: Raw img latents shape: {raw_img_latents.shape}")
-                        # print(f"🔍 DEBUG VAL: Raw img latents stats - min: {raw_img_latents.min().item():.6f}, max: {raw_img_latents.max().item():.6f}")
-                        original_image = self._decode_raw_latent_to_image(raw_img_latents)
-                    else:
-                        # print("🔍 DEBUG VAL: Using FLUX-format img_latents for original image decoding")
-                        original_image = self._decode_latent_to_image(img_latents)
-                    
-                    # Decode generated latent to image
-                    generated_image = self._decode_latent_to_image(generated_latent)
-                    
-                    # Save images with validation prefix
-                    safe_caption = caption_text.replace(" ", "_").replace("/", "_").replace("\\", "_")[:50]
-                    image_save_path = os.path.join(
-                        self.save_dir, 
-                        f"epoch_{epoch:03d}_step_{step:06d}_{timestamp}_val_generated_{safe_caption}.png"
-                    )
-                    original_image_path = os.path.join(
-                        self.save_dir, 
-                        f"epoch_{epoch:03d}_step_{step:06d}_{timestamp}_val_original_{safe_caption}.png"
-                    )
-                    
-                    # Save images
-                    plt.imsave(image_save_path, generated_image)
-                    plt.imsave(original_image_path, original_image)
-                    
-                    print(f"Validation generated image saved to: {image_save_path}")
-                    print(f"Validation original image saved to: {original_image_path}")
-                    
-                    # Save caption text
-                    caption_save_path = os.path.join(
-                        self.save_dir, 
-                        f"epoch_{epoch:03d}_step_{step:06d}_{timestamp}_val_caption.txt"
-                    )
-                    with open(caption_save_path, 'w', encoding='utf-8') as f:
-                        f.write(caption_text)
-                    print(f"Validation caption saved to: {caption_save_path}")
+                    # Process each sample individually
+                    for i in range(num_samples):
+                        # Get individual sample
+                        single_generated_latent = generated_latents[i:i+1]  # [1, seq_len, features]
+                        single_img_latents = img_latents[i:i+1]  # [1, seq_len, features]
+                        single_caption = caption_texts[i]
+                        
+                        # Check if we have raw_img_latents available (better for decoding)
+                        if 'raw_img_latents' in val_batch:
+                            raw_img_latents = val_batch['raw_img_latents'][i:i+1].to(device=self.device, dtype=model_dtype)
+                            original_image = self._decode_raw_latent_to_image(raw_img_latents)
+                        else:
+                            original_image = self._decode_latent_to_image(single_img_latents)
+                        
+                        # Decode generated latent to image
+                        generated_image = self._decode_latent_to_image(single_generated_latent)
+                        
+                        # Save images with validation prefix
+                        safe_caption = single_caption.replace(" ", "_").replace("/", "_").replace("\\", "_")[:50]
+                        image_save_path = os.path.join(
+                            self.save_dir, 
+                            f"epoch_{epoch:03d}_step_{step:06d}_{timestamp}_val_{i+1}_generated_{safe_caption}.png"
+                        )
+                        original_image_path = os.path.join(
+                            self.save_dir, 
+                            f"epoch_{epoch:03d}_step_{step:06d}_{timestamp}_val_{i+1}_original_{safe_caption}.png"
+                        )
+                        
+                        # Save images
+                        plt.imsave(image_save_path, generated_image)
+                        plt.imsave(original_image_path, original_image)
+                        
+                        print(f"Validation sample {i+1} generated image saved to: {image_save_path}")
+                        print(f"Validation sample {i+1} original image saved to: {original_image_path}")
+                        
+                        # Save caption text for each sample
+                        caption_save_path = os.path.join(
+                            self.save_dir, 
+                            f"epoch_{epoch:03d}_step_{step:06d}_{timestamp}_val_{i+1}_caption.txt"
+                        )
+                        with open(caption_save_path, 'w', encoding='utf-8') as f:
+                            f.write(single_caption)
+                        print(f"Validation sample {i+1} caption saved to: {caption_save_path}")
                     
                 except Exception as e:
                     print(f"Warning: Could not decode latents to images: {e}")
             else:
                 print("No autoencoder available - only saving raw latents")
             
+            # Store the result before cleanup
+            result = generated_latents.clone() if generated_latents is not None else None
+            
             # Clean up remaining tensors
             del img_latents, img_ids, txt_embeds, txt_ids, vec_embeds, val_batch
+            if generated_latents is not None:
+                del generated_latents
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
                 gc.collect()
                 
-            return generated_latent
+            return result
                 
         except Exception as e:
             print(f"Error generating validation sample: {e}")
@@ -487,6 +511,8 @@ class TrainingInference:
             traceback.print_exc()
             
             # Clean up on error
+            if 'generated_latents' in locals() and generated_latents is not None:
+                del generated_latents
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
                 gc.collect()
@@ -674,10 +700,11 @@ def create_inference_callback(config: Dict[str, Any], eval_dataloader=None):
             # print(f"🔍 DEBUG: current_epoch % interval_epochs == 0: {current_epoch % interval_epochs == 0}")
             # print(f"🔍 DEBUG: current_epoch: {current_epoch}, interval_epochs: {interval_epochs}")
             
+            # Add debug print to track epoch numbers
+            # print(f"DEBUG: Checking inference - Current epoch: {current_epoch}, Last inference: {self.last_inference_epoch}, Interval: {interval_epochs}")
+            
             if current_epoch > self.last_inference_epoch and current_epoch % interval_epochs == 0:
-                # print(f"🚀 DEBUG: Starting inference for epoch {current_epoch}")
-                # print(f"🔍 DEBUG: Interval epochs: {interval_epochs}")
-                # print(f"🔍 DEBUG: Current epoch: {current_epoch}, Last inference epoch: {self.last_inference_epoch}")
+                print(f"DEBUG: Running inference for epoch {current_epoch}")
                 
                 # Update last inference epoch immediately to prevent multiple calls
                 self.last_inference_epoch = current_epoch
@@ -699,13 +726,17 @@ def create_inference_callback(config: Dict[str, Any], eval_dataloader=None):
                     # Print memory usage before inference
                     # print_gpu_memory_usage(f"🔍 Before inference (epoch {current_epoch}):")
                     
+                    # Ensure epoch number is correct
+                    epoch_num = int(state.timestamp.epoch.value)
+                    print(f"DEBUG: Generating validation sample for epoch {epoch_num} (raw: {state.timestamp.epoch.value})")
+                    
                     self.inference.generate_sample_from_validation(
-                        epoch=current_epoch,
+                        epoch=epoch_num,
                         step=int(state.timestamp.batch.value)
                     )
                     
                     # Clean up GPU memory after inference
-                    cleanup_gpu_memory(verbose=True)
+                    cleanup_gpu_memory(verbose=False)  # Disabled verbose output
                     # print_gpu_memory_usage(f"🔍 After inference (epoch {current_epoch}):")
                     
                     print(f"Completed validation inference for epoch {current_epoch}")

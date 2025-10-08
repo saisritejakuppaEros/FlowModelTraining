@@ -108,11 +108,11 @@ def save_images_and_csv(images_data, output_image_folder, output_csv):
     print(f"CSV file created: {output_csv}")
     print(f"Total entries: {len(csv_data)}")
 
-def process_wds_dataset(wds_dir, output_image_folder, output_csv, num_proc=16):
+def process_wds_dataset(wds_dir, output_image_folder, output_csv, num_proc=64):
     """
     Process CC12M dataset stored in WDS format and save images and captions into CSV.
     """
-    tars = glob.glob(os.path.join(wds_dir, '*.tar'))[:3]  # Find all tar files in the provided directory
+    tars = glob.glob(os.path.join(wds_dir, '*.tar'))  # Find all tar files in the provided directory
     print(f"Found {len(tars)} tar files in the dataset directory.")
 
     all_images_data = []
