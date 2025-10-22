@@ -12,3 +12,12 @@ train/inference_samples
 train/output
 data_gen/cc12m_dataset/flux_latents_mds
 data_gen/cc12m_dataset/mds
+train/000002_barrier_filelock
+train/000002_cache_filelock
+*cache*
+mds/
+train/outputs_infer/
+train/output_bkp/
+train/output.png
+train/output_latents.npy
+train/output_metadata.txt

@@ -415,9 +415,6 @@ def main():
     parser = argparse.ArgumentParser(description="FLUX Image Generation")
     parser.add_argument("--prompt", type=str, required=True, help="Text prompt for image generation")
     parser.add_argument("--negative_prompt", type=str, default="", help="Negative prompt")
-    parser.add_argument("--checkpoint", type=str, 
-                       default="/data0/teja_works/diffusion_training/nvidia_tools_training/mosicml_code/FlowModelTraining/train/output/checkpoints/ep25-ba8925-rank0.pt",
-                       help="Path to model checkpoint")
     parser.add_argument("--config", type=str, default="config.yaml", help="Path to config file")
     parser.add_argument("--output", type=str, default="generated_image.png", help="Output image path")
     parser.add_argument("--height", type=int, default=256, help="Image height")
@@ -433,7 +430,7 @@ def main():
     try:
         # Initialize inference engine
         engine = FluxInferenceEngine(
-            checkpoint_path=args.checkpoint,
+            checkpoint_path='/data0/teja_works/diffusion_training/dataset_preparation/micro_diffusion/FlowModelTraining/train/output/checkpoints/latest-rank0.pt',
             config_path=args.config,
             device=args.device,
             dtype=args.dtype

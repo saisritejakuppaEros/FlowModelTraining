@@ -6,7 +6,7 @@ seed: 42
 
 # Dataset configuration
 dataset:
-  train_batch_size: 16 # Reduced from 8 to 2 to help with memory
+  train_batch_size: 128 # Reduced from 8 to 2 to help with memory
   eval_batch_size: 16   # Reduced from 8 to 2 to help with memory
   num_workers: 24       # Reduced from 16 to 8 to help with memory
   # Separate paths for different data splits
@@ -24,7 +24,7 @@ model:
 
 # Optimizer configuration
 optimizer:
-  lr: 1e-4             # Reduced learning rate for better convergence
+  lr: 1e-3             # Reduced learning rate for better convergence
   weight_decay: 0.01    # Reduced weight decay
   betas: [0.9, 0.999]   # Adam beta parameters
   eps: 1.0e-8          # Adam epsilon parameter
@@ -32,7 +32,7 @@ optimizer:
 scheduler:
   name: CosineAnnealingWithWarmupScheduler
   warmup_duration: "5ep"     # Warmup for 5 epochs (~0.5% of total)
-  max_duration: "1000ep"     # Match total training duration
+  max_duration: "5000ep"     # Match total training duration
   alpha_f: 0.1               # Final LR = 10% of base LR
 
 trainer:
@@ -95,7 +95,7 @@ nccl:
 # Inference configuration for during training
 inference:
   enabled: true                  # Enable inference during training
-  interval: "1ep"                # Run inference every epoch
+  interval: "5ep"                # Run inference every epoch
   num_steps: 50                  # Number of sampling steps for inference
   guidance_scale: 4.0            # Guidance scale for inference
   save_dir: "./output/inference_samples" # Directory to save inference images
